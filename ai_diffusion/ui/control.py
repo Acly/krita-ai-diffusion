@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from functools import partial
 
-from PyQt6.QtCore import QEvent, QMetaObject, QPoint, QRect, QRectF, QSize, Qt
+from PyQt6.QtCore import QEvent, QMetaObject, QPoint, QRect, QRectF, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import (
     QAction,
     QColor,
@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLayout,
     QLayoutItem,
+    QLineEdit,
     QMenu,
     QPushButton,
     QSizePolicy,
@@ -36,15 +37,20 @@ from PyQt6.QtWidgets import (
     QWidgetItem,
 )
 
+from ..backend.api import LoraInput
 from ..backend.resources import ControlMode
 from ..image import Extent
 from ..localization import translate as _
 from ..model.control import ControlLayer, ControlLayerList
+from ..model.model import DocumentModel
 from ..model.properties import Binding, bind_combo
 from ..model.region import Region
 from ..model.root import root
 from . import theme
 from .interval_slider import IntervalSlider
+from .lora import LoraSelectionDialog, lora_pixmap
+from .style import LoraPreviewMenu, LoraStrengthSpinBox, LoraThumbnail
+from .theme import SignalBlocker
 
 THUMBNAIL_HEIGHT = 64
 THUMBNAIL_WIDTH = THUMBNAIL_HEIGHT * 3 // 2
@@ -130,13 +136,15 @@ class FlowLayout(QLayout):
         return y + line_height - rect.y() + margins.bottom()
 
 
-class AddControlButton(QWidget):
-    def __init__(self, model: ControlLayerList, parent: ControlListWidget):
+class AddConditionButton(QWidget):
+    clicked = pyqtSignal()
+
+    def __init__(self, icon: str, tooltip: str, parent=None):
         super().__init__(parent)
-        self.model = model
+        self._icon = icon
         self._hovered = False
-        self.setToolTip(_("Add Control Layer"))
-        self.setFixedSize(THUMBNAIL_HEIGHT, THUMBNAIL_HEIGHT)
+        self.setToolTip(tooltip)
+        self.setFixedSize(THUMBNAIL_HEIGHT, (ITEM_HEIGHT - ITEM_SPACING) // 2)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
     def paintEvent(self, a0: QPaintEvent | None):
@@ -150,7 +158,7 @@ class AddControlButton(QWidget):
         size = 26
         icon_rect = QRect(0, 0, size, size)
         icon_rect.moveCenter(self.rect().center())
-        theme.icon("control-add").paint(painter, icon_rect)
+        theme.icon(self._icon).paint(painter, icon_rect)
 
     def enterEvent(self, event: QEnterEvent | None):
         self._hovered = True
@@ -164,7 +172,7 @@ class AddControlButton(QWidget):
 
     def mouseReleaseEvent(self, a0: QMouseEvent | None):
         if a0 and a0.button() is Qt.MouseButton.LeftButton and self.rect().contains(a0.pos()):
-            self.model.add()
+            self.clicked.emit()
         super().mouseReleaseEvent(a0)
 
 
@@ -722,12 +730,14 @@ def _silent_layout_update(widget: QWidget):
 
 
 class ControlListWidget(QWidget):
-    def __init__(self, model: ControlLayerList, parent=None):
+    def __init__(self, model: DocumentModel, parent=None):
         super().__init__(parent)
-        self._model = model
+        self._model = model.control
+        self._document_model = model
+        self._lora_widgets: list[DocumentLoraWidget] = []
         self._widgets: list[ControlWidget] = []
         self._model_connections: list[QMetaObject.Connection] = []
-        self._advanced_panel: ControlAdvancedPanel | None = None
+        self._advanced_panel: ControlAdvancedPanel | LoraAdvancedPanel | None = None
 
         self._items = QWidget(self)
         self._flow_layout = FlowLayout(self._items)
@@ -747,11 +757,12 @@ class ControlListWidget(QWidget):
 
     @property
     def model(self):
-        return self._model
+        return self._document_model
 
     @model.setter
-    def model(self, model: ControlLayerList):
-        if model is self._model and self._model_connections:
+    def model(self, document_model: DocumentModel):
+        model = document_model.control
+        if document_model is self._document_model and self._model_connections:
             return
         self.close_advanced()
         if self._model_connections:
@@ -761,21 +772,38 @@ class ControlListWidget(QWidget):
             widget.disconnect_all()
             widget.deleteLater()
         self._widgets.clear()
+        for widget in self._lora_widgets:
+            self._flow_layout.takeWidget(widget)
+            widget.disconnect_all()
+            widget.deleteLater()
+        self._lora_widgets.clear()
         old_add = getattr(self, "_add_button", None)
         if old_add is not None:
             self._flow_layout.takeWidget(old_add)
             old_add.deleteLater()
 
+        self._document_model = document_model
         self._model = model
         self._add_button = None
+        self._refresh_loras()
         for control in model:
             self._add_widget(control)
-        self._add_button = AddControlButton(model, self)
+        self._add_button = QWidget(self)
+        buttons = QVBoxLayout(self._add_button)
+        buttons.setContentsMargins(0, 0, 0, 0)
+        buttons.setSpacing(ITEM_SPACING)
+        self._add_control_button = AddConditionButton("control-add", _("Add Control Layer"), self)
+        self._add_control_button.clicked.connect(model.add)
+        self._add_lora_button = AddConditionButton("lora-add", _("Add LoRA"), self)
+        self._add_lora_button.clicked.connect(self._select_lora)
+        buttons.addWidget(self._add_control_button)
+        buttons.addWidget(self._add_lora_button)
         self._flow_layout.addWidget(self._add_button)
         self._model_connections = [
             model.added.connect(self._add_widget),
             model.removed.connect(self._remove_widget),
             model.changed.connect(self._refresh),
+            document_model.loras_changed.connect(self._refresh_loras),
         ]
         self._flow_layout.invalidate()
 
@@ -783,13 +811,17 @@ class ControlListWidget(QWidget):
     def advanced_owner(self):
         return self._advanced_panel.owner if self._advanced_panel else None
 
-    def toggle_advanced(self, owner: ControlWidget):
+    def toggle_advanced(self, owner: ControlWidget | DocumentLoraWidget):
         if self.advanced_owner is owner:
             self.close_advanced()
             return
         self.close_advanced()
         with _silent_layout_update(self):
-            self._advanced_panel = ControlAdvancedPanel(owner)
+            self._advanced_panel = (
+                LoraAdvancedPanel(owner)
+                if isinstance(owner, DocumentLoraWidget)
+                else ControlAdvancedPanel(owner)
+            )
             self._details_layout.addWidget(self._advanced_panel)
             self._advanced_panel.show()
             owner.thumbnail.update()
@@ -819,8 +851,38 @@ class ControlListWidget(QWidget):
         for widget in self._widgets:
             self._flow_layout.takeWidget(widget)
         for i, widget in enumerate(self._widgets):
-            self._flow_layout.insertWidget(i, widget)
+            self._flow_layout.insertWidget(len(self._lora_widgets) + i, widget)
         self._flow_layout.invalidate()
+
+    def _select_lora(self):
+        dialog = LoraSelectionDialog(self._document_model, self)
+        dialog.selected.connect(self._add_lora)
+        dialog.open_at(self._add_lora_button.mapToGlobal(QPoint()))
+
+    def _add_lora(self, id: str):
+        if not any(l.name == id for l in self._document_model.loras):
+            file = root.files.loras.find(id)
+            strength = file.meta("lora_strength", 1.0) if file else 1.0
+            self._document_model.loras = [*self._document_model.loras, LoraInput(id, strength)]
+
+    def _refresh_loras(self):
+        loras = self._document_model.loras
+        with _silent_layout_update(self):
+            for widget in list(self._lora_widgets):
+                if not any(l.name == widget.id for l in loras):
+                    self._lora_widgets.remove(widget)
+                    self._flow_layout.takeWidget(widget)
+                    widget.disconnect_all()
+                    widget.deleteLater()
+            for index, lora in enumerate(loras):
+                widget = next((w for w in self._lora_widgets if w.id == lora.name), None)
+                if widget is None:
+                    widget = DocumentLoraWidget(lora.name, self)
+                    self._lora_widgets.append(widget)
+                self._flow_layout.takeWidget(widget)
+                self._flow_layout.insertWidget(index, widget)
+                widget.refresh()
+            self._flow_layout.invalidate()
 
     def _add_widget(self, control: ControlLayer):
         if control not in self._model:
@@ -865,3 +927,171 @@ def _create_add_pose_button(parent):
     return CompactButton(
         "add-pose", _("Add Skeleton"), _("Add new character pose to selected layer"), parent
     )
+
+
+class DocumentLoraThumbnail(LoraThumbnail):
+    def __init__(self, owner: DocumentLoraWidget):
+        super().__init__(owner)
+        self.owner = owner
+        self.setFixedSize(THUMBNAIL_HEIGHT, THUMBNAIL_HEIGHT)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.remove_button = QToolButton(self)
+        self.remove_button.setGeometry(self.width() - 22, 2, 20, 20)
+        self.remove_button.setIconSize(QSize(14, 14))
+        self.remove_button.setIcon(theme.icon("remove"))
+        self.remove_button.setToolTip(_("Remove LoRA"))
+        base = self.palette().color(QPalette.ColorRole.Base)
+        self.remove_button.setStyleSheet(
+            f"QToolButton {{background: rgba({base.red()}, {base.green()}, {base.blue()}, 204);"
+            " border: none; border-radius: 2px; padding: 3px;}"
+            "QToolButton:hover {background: rgb(170, 45, 45);}"
+        )
+        self.remove_button.clicked.connect(owner.remove)
+
+    def paintEvent(self, a0):
+        super().paintEvent(a0)
+        painter = QPainter(self)
+        if self.owner.strength == 0:
+            painter.setPen(QPen(QColor(120, 120, 120, 135), 6))
+            for x in range(-self.height(), self.width() + self.height(), 12):
+                painter.drawLine(x, self.height(), x + self.height(), 0)
+        if self.owner.is_advanced_open:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QPen(self.palette().color(QPalette.ColorRole.Highlight), 3))
+            painter.drawRoundedRect(QRectF(self.rect()).adjusted(1.5, 1.5, -1.5, -1.5), 2, 2)
+
+    def mouseReleaseEvent(self, ev: QMouseEvent | None):
+        if ev and ev.button() is Qt.MouseButton.LeftButton and self.rect().contains(ev.pos()):
+            self.owner.list_widget.toggle_advanced(self.owner)
+        super().mouseReleaseEvent(ev)
+
+
+class DocumentLoraWidget(QWidget):
+    def __init__(self, id: str, parent: ControlListWidget):
+        super().__init__(parent)
+        self.id = id
+        self.list_widget = parent
+        self.model = parent.model
+        self.setFixedSize(THUMBNAIL_HEIGHT, ITEM_HEIGHT)
+        self.thumbnail = DocumentLoraThumbnail(self)
+        self.slider = QSlider(Qt.Orientation.Horizontal, self)
+        self.slider.setRange(0, 20)
+        self.slider.setSingleStep(1)
+        self.slider.setPageStep(1)
+        self.slider.setFixedHeight(CONTROL_HEIGHT)
+        self.slider.setToolTip(_("LoRA strength"))
+        self.slider.valueChanged.connect(lambda value: self.set_strength(value / 20))
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self.thumbnail)
+        layout.addWidget(self.slider)
+        self._connections = [root.files.loras.dataChanged.connect(self.refresh)]
+        self.refresh()
+
+    @property
+    def strength(self):
+        return next((l.strength for l in self.model.loras if l.name == self.id), 0.0)
+
+    @property
+    def is_advanced_open(self):
+        return self.list_widget.advanced_owner is self
+
+    def set_strength(self, value: float):
+        self.model.loras = [
+            LoraInput(l.name, value) if l.name == self.id else l for l in self.model.loras
+        ]
+
+    def remove(self):
+        self.model.loras = [l for l in self.model.loras if l.name != self.id]
+
+    def refresh(self):
+        file = root.files.loras.find(self.id)
+        self.thumbnail.setPixmap(lora_pixmap(file, THUMBNAIL_HEIGHT))
+        self.thumbnail.setToolTip(file.full_name if file else self.id)
+        with SignalBlocker(self.slider):
+            self.slider.setValue(round(self.strength * 20))
+        self.thumbnail.update()
+
+    def disconnect_all(self):
+        Binding.disconnect_all(self._connections)
+        if self.is_advanced_open:
+            self.list_widget.close_advanced()
+
+
+class LoraAdvancedPanel(QFrame):
+    def __init__(self, owner: DocumentLoraWidget):
+        super().__init__(owner.list_widget)
+        self.owner = owner
+
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setFrameShadow(QFrame.Shadow.Raised)
+        self.setLineWidth(1)
+
+        self.name = QLabel(self)
+        self.name.setTextFormat(Qt.TextFormat.PlainText)
+        self.name.setMinimumWidth(0)
+        self.name.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.preview_button = QToolButton(self)
+        self.preview_button.setIcon(theme.icon("control-reference"))
+        self.preview_button.setAutoRaise(True)
+        self.preview_button.setToolTip(_("Preview image"))
+        self.preview_button.clicked.connect(self._preview_menu)
+        close_button = QToolButton(self)
+        close_button.setIcon(theme.icon("remove"))
+        close_button.setAutoRaise(True)
+        close_button.setToolTip(_("Close"))
+        close_button.clicked.connect(owner.list_widget.close_advanced)
+        self.strength = LoraStrengthSpinBox(self)
+        self.strength.valueChanged.connect(lambda value: owner.set_strength(value / 100))
+        self.triggers = QLineEdit(self)
+        self.triggers.setPlaceholderText(
+            _("Optional text which is added to the prompt when the LoRA is used")
+        )
+        self.triggers.textChanged.connect(self._set_triggers)
+
+        layout = QGridLayout(self)
+        layout.setContentsMargins(4, 2, 4, 2)
+        layout.setHorizontalSpacing(4)
+        layout.setVerticalSpacing(2)
+        buttons = QHBoxLayout()
+        buttons.setSpacing(2)
+        buttons.addWidget(self.preview_button)
+        buttons.addWidget(close_button)
+        layout.addWidget(self.name, 0, 0, 1, 2)
+        layout.addLayout(buttons, 0, 2, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(QLabel(_("Strength") + ":", self), 1, 0)
+        layout.addWidget(self.strength, 1, 1, Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(QLabel(_("Triggers") + ":", self), 2, 0)
+        layout.addWidget(self.triggers, 2, 1, 1, 2)
+        layout.setColumnStretch(1, 1)
+
+        self._connections = [
+            owner.model.loras_changed.connect(self._update),
+            root.files.loras.dataChanged.connect(self._update),
+        ]
+        self._update()
+
+    def _update(self):
+        file = root.files.loras.find(self.owner.id)
+        self.name.setText(file.full_name if file else self.owner.id)
+        self.name.setToolTip(self.name.text())
+        with SignalBlocker(self.strength), SignalBlocker(self.triggers):
+            self.strength.setValue(round(self.owner.strength * 100))
+            triggers = file.meta("lora_triggers", "") if file else ""
+            if self.triggers.text() != triggers:
+                self.triggers.setText(triggers)
+
+    def _preview_menu(self):
+        file = root.files.loras.find(self.owner.id)
+        menu = LoraPreviewMenu(file, self, self.owner.model.document)
+        menu.exec(self.preview_button.mapToGlobal(self.preview_button.rect().bottomLeft()))
+
+    def _set_triggers(self, text: str):
+        if file := root.files.loras.find(self.owner.id):
+            if file.meta("lora_triggers", "") != text:
+                root.files.loras.set_meta(file, "lora_triggers", text)
+
+    def disconnect_all(self):
+        Binding.disconnect_all(self._connections)

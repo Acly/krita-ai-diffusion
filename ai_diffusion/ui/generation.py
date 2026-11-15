@@ -263,7 +263,7 @@ class GenerationWidget(QWidget):
         prompt_layout.addWidget(self.region_prompt)
         mode_layout.addWidget(self.prompt_frame)
         layout.addWidget(self.mode_area)
-        self.control_list = ControlListWidget(self._model.control, self)
+        self.control_list = ControlListWidget(self._model, self)
         layout.addWidget(self.control_list)
 
         self.layer_count_widget = LayerCountWidget(self)
@@ -328,7 +328,7 @@ class GenerationWidget(QWidget):
                 self.generate_button.ctrl_clicked.connect(model.generate_replace),
             ]
             self.region_prompt.regions = model.regions
-            self.control_list.model = model.control
+            self.control_list.model = model
             self.context.model = model
             self.generate_button.model = model
             self.advanced_settings.model = model

@@ -25,6 +25,7 @@ from ..backend.api import (
     InpaintContext,
     InpaintMode,
     InpaintParams,
+    LoraInput,
     SamplingInput,
     UpscaleInput,
     WorkflowInput,
@@ -138,6 +139,7 @@ class DocumentModel(QObject, ObservableProperties):
     style = Property(Styles.list().default, setter="set_style", persist=True)
     edit_style = Property(Styles.list().default_edit, setter="set_edit_style", persist=True)
     strength = Property(1.0, persist=True)
+    loras = Property(list[LoraInput](), persist=True)
     mask_source = Property(MaskSource.selection, persist=True)
     edit_mode = Property(False, persist=True)
     batch_count = Property(1, persist=True)
@@ -156,6 +158,7 @@ class DocumentModel(QObject, ObservableProperties):
     edit_style_changed = pyqtSignal(Style)
     active_style_changed = pyqtSignal(Style)
     strength_changed = pyqtSignal(float)
+    loras_changed = pyqtSignal(list)
     mask_source_changed = pyqtSignal(MaskSource)
     edit_mode_changed = pyqtSignal(bool)
     batch_count_changed = pyqtSignal(int)
@@ -311,7 +314,7 @@ class DocumentModel(QObject, ObservableProperties):
         original_conditioning = conditioning
         inpaint_instruction = inpaint_mode if is_one(strength) else None
         conditioning, loras, prompt_meta = workflow.prepare_prompts(
-            conditioning, self.active_style, seed, arch, inpaint_instruction, ref_layers
+            conditioning, self.active_style, seed, arch, inpaint_instruction, ref_layers, self.loras
         )
 
         image = None
@@ -394,6 +397,7 @@ class DocumentModel(QObject, ObservableProperties):
                         self.arch,
                         params.inpaint_mode,
                         params.ref_layers,
+                        loras=self.loras,
                     )
                     input.conditioning = next_prompt.conditioning
                     params.metadata = params.metadata | next_prompt.metadata
@@ -449,6 +453,7 @@ class DocumentModel(QObject, ObservableProperties):
                 FileLibrary.instance(),
                 self._performance_settings(client),
                 strength=params.strength,
+                loras=[copy(l) for l in self.loras if l.strength != 0],
                 upscale_factor=params.factor,
                 upscale=params.upscale,
             )
@@ -529,7 +534,14 @@ class DocumentModel(QObject, ObservableProperties):
         conditioning.language = self.prompt_translation_language
         conditioning, ref_layers = self._add_reference_layers(conditioning)
         conditioning, loras, _ = workflow.prepare_prompts(
-            conditioning, self.active_style, self.seed, self.arch, None, ref_layers, is_live=True
+            conditioning,
+            self.active_style,
+            self.seed,
+            self.arch,
+            None,
+            ref_layers,
+            self.loras,
+            is_live=True,
         )
 
         input = workflow.prepare(
@@ -1449,7 +1461,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
         conditioning.language = m.prompt_translation_language
         conditioning, ref_layers = m._add_reference_layers(conditioning)
         conditioning, loras, _prompt_meta = workflow.prepare_prompts(
-            conditioning, m.active_style, seed, m.arch, None, ref_layers, is_live=is_live
+            conditioning, m.active_style, seed, m.arch, None, ref_layers, m.loras, is_live=is_live
         )
 
         return workflow.prepare(

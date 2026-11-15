@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
 from ..backend.client import resolve_arch
 from ..backend.resources import Arch, ResourceId, ResourceKind, search_paths
 from ..backend.server import Server
+from ..document import Document
 from ..files import File, FileFilter, FileFormat, FileSource
 from ..localization import translate as _
 from ..model.root import root
@@ -68,6 +69,53 @@ class LoraThumbnail(QLabel):
             painter.fillRect(self.rect(), QColor(128, 128, 128, 160))
 
 
+class LoraPreviewMenu(QMenu):
+    def __init__(self, file: File | None, parent=None, document: Document | None = None):
+        super().__init__(parent)
+        self._file = file
+        self._document = document or root.active_model.document
+        canvas = self.addAction(_("Use current canvas"))
+        assert canvas is not None
+        canvas.setEnabled(file is not None and self._document.is_valid)
+        canvas.triggered.connect(self._set_image_from_canvas)
+        open_file = self.addAction(_("Open file..."))
+        assert open_file is not None
+        open_file.setEnabled(file is not None)
+        open_file.triggered.connect(self._load_image_from_file)
+
+    def _set_image_from_canvas(self):
+        if self._file is None:
+            return
+        try:
+            image = self._document.get_image().to_pixmap().toImage()
+            root.files.loras.set_image(self._file, image)
+        except Exception as e:
+            QMessageBox.warning(self, _("Preview image"), str(e))
+
+    def _load_image_from_file(self):
+        if self._file is None:
+            return
+        filename, _filter = QFileDialog.getOpenFileName(
+            self, _("Select preview image"), "", "Images (*.png *.jpg *.jpeg *.webp *.bmp)"
+        )
+        if not filename:
+            return
+        try:
+            root.files.loras.set_image(self._file, QImage(filename))
+        except Exception as e:
+            QMessageBox.warning(self, _("Preview image"), str(e))
+
+
+class LoraStrengthSpinBox(QSpinBox):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setRange(-400, 400)
+        self.setSingleStep(5)
+        self.setValue(100)
+        self.setSuffix("%")
+        self.setMinimumWidth(80)
+
+
 class LoraItem(QWidget):
     changed = pyqtSignal()
     removed = pyqtSignal(QWidget)
@@ -100,13 +148,8 @@ class LoraItem(QWidget):
         self._enabled.setChecked(True)
         self._enabled.toggled.connect(self._notify_changed)
 
-        self._strength = QSpinBox(self)
-        self._strength.setMinimum(-400)
-        self._strength.setMaximum(400)
-        self._strength.setSingleStep(5)
-        self._strength.setValue(100)
+        self._strength = LoraStrengthSpinBox(self)
         self._strength.setPrefix(_("Strength") + ": ")
-        self._strength.setSuffix("%")
         self._strength.valueChanged.connect(self._notify_changed)
 
         self._remove = QToolButton(self)
@@ -175,11 +218,7 @@ class LoraItem(QWidget):
         name = ""
         detail = ""
         if file := self._current:
-            name = (
-                f"{file.name} {file.version or ''}".strip()
-                if file.civitai and file.civitai != "not-found"
-                else file.id
-            )
+            name = file.full_name
             if file.arch:
                 detail += f" | {file.arch.value}"
             if triggers := file.meta("lora_triggers", ""):
@@ -216,35 +255,16 @@ class LoraItem(QWidget):
     def _preview_menu(self, position):
         if not self._current:
             return
-        menu = QMenu(self)
-        canvas = menu.addAction(_("Use current canvas"))
-        assert canvas is not None
-        canvas.setEnabled(root.active_model.document.is_valid)
-        open_file = menu.addAction(_("Open file..."))
-        action = menu.exec(self._thumbnail.mapToGlobal(position))
-        if action == canvas:
-            self._set_image_from_canvas()
-        elif action == open_file:
-            self._load_image_from_file()
+        menu = LoraPreviewMenu(self._current, self)
+        menu.exec(self._thumbnail.mapToGlobal(position))
 
     def _more_menu(self):
         menu = self._create_more_menu()
         menu.exec(self._more.mapToGlobal(self._more.rect().bottomLeft()))
 
     def _create_more_menu(self):
-        menu = QMenu(self)
+        menu = LoraPreviewMenu(self._current, self)
         has_lora = self._current is not None
-
-        canvas = menu.addAction(_("Set image from canvas"))
-        assert canvas is not None
-        canvas.setEnabled(has_lora and root.active_model.document.is_valid)
-        canvas.triggered.connect(self._set_image_from_canvas)
-
-        open_file = menu.addAction(_("Load image from file"))
-        assert open_file is not None
-        open_file.setEnabled(has_lora)
-        open_file.triggered.connect(self._load_image_from_file)
-
         menu.addSeparator()
 
         default = self._default_strength
@@ -270,28 +290,6 @@ class LoraItem(QWidget):
         edit_triggers.triggered.connect(self._set_edit_triggers)
 
         return menu
-
-    def _set_image_from_canvas(self):
-        if not self._current:
-            return
-        try:
-            image = root.active_model.document.get_image().to_pixmap().toImage()
-            root.files.loras.set_image(self._current, image)
-        except Exception as e:
-            QMessageBox.warning(self, _("Preview image"), str(e))
-
-    def _load_image_from_file(self):
-        if not self._current:
-            return
-        filename, _filter = QFileDialog.getOpenFileName(
-            self, _("Select preview image"), "", "Images (*.png *.jpg *.jpeg *.webp *.bmp)"
-        )
-        if not filename:
-            return
-        try:
-            root.files.loras.set_image(self._current, QImage(filename))
-        except Exception as e:
-            QMessageBox.warning(self, _("Preview image"), str(e))
 
     def _set_edit_triggers(self, enabled: bool):
         self._edit_triggers = enabled
@@ -458,6 +456,21 @@ _special_lora_warning = _(
 )
 
 
+def populate_lora_folders(combo: QComboBox, selected: str):
+    with SignalBlocker(combo):
+        combo.clear()
+        combo.addItem(icon("filter"), "All")
+        folders = set()
+        for lora in root.files.loras:
+            if lora.source is not FileSource.unavailable:
+                parts = lora.id.replace("\\", "/").split("/")
+                folders.update("/".join(parts[:i]) for i in range(1, len(parts)))
+        folder_icon = Krita.instance().icon("document-open")
+        for folder in sorted(folders, key=str.lower):
+            combo.addItem(folder_icon, folder)
+    combo.setCurrentText(selected)
+
+
 class LoraList(QWidget):
     value_changed = pyqtSignal()
 
@@ -557,18 +570,7 @@ class LoraList(QWidget):
         self.value_changed.emit()
 
     def _collect_filters(self):
-        with SignalBlocker(self._filter_combo):
-            self._filter_combo.clear()
-            self._filter_combo.addItem(icon("filter"), "All")
-            folders = set()
-            for lora in root.files.loras:
-                if lora.source is not FileSource.unavailable:
-                    parts = Path(lora.id).parts
-                    folders.update("/".join(parts[:i]) for i in range(1, len(parts)))
-            folder_icon = Krita.instance().icon("document-open")
-            for folder in sorted(folders, key=lambda x: x.lower()):
-                self._filter_combo.addItem(folder_icon, folder)
-        self._filter_combo.setCurrentText(LoraList.last_filter)
+        populate_lora_folders(self._filter_combo, LoraList.last_filter)
         self._add_button.setEnabled(root.files.loras.rowCount() > 0)
 
     def _set_filtered_names(self):

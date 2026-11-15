@@ -54,6 +54,12 @@ class File:
             return File.remote(self.id).name
         return self.name
 
+    @property
+    def full_name(self):
+        if self.civitai and self.civitai != "not-found":
+            return f"{self.name} {self.version or ''}".strip()
+        return self.id
+
     @staticmethod
     def remote(id: str, format=FileFormat.unknown):
         name = id.replace("\\", "/")

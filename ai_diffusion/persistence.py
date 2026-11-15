@@ -12,7 +12,7 @@ from PyQt6.QtGui import QImageReader
 from PyQt6.QtWidgets import QMessageBox
 
 from . import eventloop
-from .backend.api import InpaintMode
+from .backend.api import InpaintMode, LoraInput
 from .image import Image, ImageCollection
 from .localization import translate as _
 from .model.control import ControlLayer, ControlLayerList
@@ -169,6 +169,7 @@ class ModelSync:
         state = json.loads(state_bytes.decode("utf-8"))
         _upgrade(state)
         model.try_set_preview_layer(state.get("preview_layer", ""))
+        state["loras"] = [LoraInput.from_dict(lora) for lora in state.get("loras", [])]
         _deserialize(model, state)
         inpaint_state = state.get("inpaint", {})
         if inpaint_state.get("mode") not in InpaintMode._value2member_map_:

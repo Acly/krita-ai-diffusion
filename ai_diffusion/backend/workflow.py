@@ -1569,6 +1569,7 @@ def prepare_prompts(
     arch: Arch,
     inpaint: InpaintMode | None = None,
     ref_layers: dict[str, int] | None = None,
+    loras: list[LoraInput] | None = None,
     files: FileLibrary | None = None,
     is_live=False,
 ):
@@ -1581,6 +1582,8 @@ def prepare_prompts(
         "negative_prompt": cond.negative,
     }
     models = style.get_models([])
+    loras = [copy(l) for l in (loras or []) if l.strength != 0]
+    models.loras = unique(models.loras + loras, key=lambda l: l.name)
     ref_layers = ref_layers or {}
     layer_replace = _layer_replace.get(arch, "")
 
@@ -1590,6 +1593,7 @@ def prepare_prompts(
     if cond.positive != meta["prompt"]:
         meta["prompt_eval"] = cond.positive
     cond.positive, extra_loras = extract_loras(cond.positive, files.loras)
+    extra_loras = unique(extra_loras + loras, key=lambda l: l.name)
     cond.positive = replace_layers(cond.positive, ref_layers, layer_replace)
     cond.positive += _collect_lora_triggers(models.loras, files)
     cond.positive = build_instructions(cond, arch, inpaint)

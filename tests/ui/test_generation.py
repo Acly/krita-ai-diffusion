@@ -3,18 +3,24 @@ from pathlib import Path
 
 import pytest
 from krita import Krita, Selection
-from PyQt6.QtCore import QByteArray
+from PyQt6.QtCore import QByteArray, QPoint, Qt
+from PyQt6.QtTest import QTest
+from PyQt6.QtWidgets import QAbstractSlider
 
-from ai_diffusion.backend.resources import ControlMode
+from ai_diffusion.backend.resources import Arch, ControlMode
 from ai_diffusion.backend.workflow import InpaintMode
 from ai_diffusion.document import KritaDocument
+from ai_diffusion.files import File, FileFormat
 from ai_diffusion.model.connection import Connection, ConnectionState
 from ai_diffusion.model.custom_workflow import WorkflowCollection
 from ai_diffusion.model.model import DocumentModel
 from ai_diffusion.model.root import root
 from ai_diffusion.settings import settings
 from ai_diffusion.style import Style
+from ai_diffusion.ui.control import ControlAdvancedPanel, LoraAdvancedPanel
 from ai_diffusion.ui.generation import GenerationWidget
+from ai_diffusion.ui.lora import LoraSelectionDialog
+from ai_diffusion.ui.style import LoraPreviewMenu
 
 from ..conftest import qtapp
 from ..mock.client import MockClient
@@ -138,7 +144,7 @@ async def test_generate_button_label(workflows_dir: Path):
         controls = widget.control_list
         controls.toggle_advanced(controls._widgets[0])
         panel = controls._advanced_panel
-        assert panel is not None
+        assert isinstance(panel, ControlAdvancedPanel)
         assert not panel.link_button.isHidden()
         control.mode = ControlMode.depth
         assert panel.link_button.isHidden()
@@ -146,6 +152,85 @@ async def test_generate_button_label(workflows_dir: Path):
         assert not panel.link_button.isHidden()
         assert not panel.link_button.isEnabled()
         assert panel.link_button.toolTip() == "Not linked to any region."
+
+        lora_file = File.remote("test-loras/detail.safetensors", FileFormat.lora)
+        lora_file.arch = Arch.sd15
+        root.files.loras.add(lora_file)
+        lora_file = root.files.loras.find(lora_file.id)
+        assert lora_file is not None
+        root.files.loras.set_meta(lora_file, "lora_strength", 0.65)
+        incompatible = File.remote("test-loras/xl.safetensors", FileFormat.lora)
+        incompatible.arch = Arch.sdxl
+        root.files.loras.add(incompatible)
+        root.files.loras.add(File.remote("test-loras/unknown.safetensors", FileFormat.lora))
+        root.files.loras.add(File.remote("test-loras/sampler.safetensors", FileFormat.lora))
+        client.models.resources["lora-test-sd15"] = "test-loras/sampler.safetensors"
+        dialog = LoraSelectionDialog(model, controls)
+        dialog.selected.connect(controls._add_lora)
+        dialog.folders.setCurrentText("test-loras")
+        assert dialog.items.count() == 2
+        dialog.open_at(QPoint(10, 10))
+        assert dialog.search.hasFocus()
+        for key, row in [
+            (Qt.Key.Key_Down, 1),
+            (Qt.Key.Key_Down, 1),
+            (Qt.Key.Key_Up, 0),
+            (Qt.Key.Key_Up, 0),
+        ]:
+            QTest.keyClick(dialog.search, key)  # type: ignore
+            assert dialog.items.currentRow() == row
+            assert dialog.search.hasFocus()
+        QTest.keyClicks(dialog.search, "DETAIL")  # type: ignore
+        assert dialog.items.count() == 1
+        assert dialog.search.text() == "DETAIL"
+        assert dialog.search.hasFocus()
+        dialog.grab()  # Paint the custom list delegate.
+        assert not model.loras
+        QTest.keyClick(dialog.search, Qt.Key.Key_Return)  # type: ignore
+        assert len(model.loras) == 1
+        lora_widget = controls._lora_widgets[0]
+        assert lora_widget.strength == 0.65
+        first = controls._flow_layout.itemAt(0)
+        assert first is not None and first.widget() is lora_widget
+        controls._refresh()
+        first = controls._flow_layout.itemAt(0)
+        assert first is not None and first.widget() is lora_widget
+        assert controls._add_control_button.size() == controls._add_lora_button.size()
+        QTest.mouseClick(lora_widget.thumbnail, Qt.MouseButton.LeftButton)  # type: ignore
+        lora_panel = controls._advanced_panel
+        assert isinstance(lora_panel, LoraAdvancedPanel)
+        assert controls.advanced_owner is lora_widget
+        lora_widget.slider.triggerAction(QAbstractSlider.SliderAction.SliderSingleStepAdd)
+        assert lora_widget.strength == 0.7
+        lora_widget.slider.triggerAction(QAbstractSlider.SliderAction.SliderSingleStepSub)
+        assert lora_widget.strength == 0.65
+        preview_menu = LoraPreviewMenu(lora_file, lora_panel, model.document)
+        assert [action.text() for action in preview_menu.actions()] == [
+            "Use current canvas",
+            "Open file...",
+        ]
+        assert all(action.isEnabled() for action in preview_menu.actions())
+        assert not lora_panel.preview_button.isHidden()
+        lora_widget.slider.setValue(0)
+        assert lora_widget.strength == 0
+        assert lora_panel.strength.value() == 0
+        lora_panel.strength.setValue(-125)
+        assert lora_widget.strength == -1.25
+        lora_panel.strength.setValue(150)
+        assert lora_widget.strength == 1.5
+        lora_panel.triggers.setText("fine details")
+        assert lora_file.meta("lora_triggers") == "fine details"
+        lora_widget.grab()
+        controls.toggle_advanced(controls._widgets[0])
+        assert controls.advanced_owner is controls._widgets[0]
+        controls.toggle_advanced(lora_widget)
+        lora_widget.remove()
+        assert not model.loras and not controls._lora_widgets
+        assert controls.advanced_owner is None
+        controls.toggle_advanced(controls._widgets[0])
+        panel = controls._advanced_panel
+        assert isinstance(panel, ControlAdvancedPanel)
+
         region = model.regions.create_region(group=False)
         assert panel.link_button.isEnabled()
         assert f"Click to link to {region.name}" in panel.link_button.toolTip()
@@ -187,4 +272,7 @@ async def test_generate_button_label(workflows_dir: Path):
         region.remove()
         assert controls._widgets == []
     finally:
+        for file in list(root.files.loras):
+            if file.id.startswith("test-loras/"):
+                root.files.loras.remove(root.files.loras.find_index(file.id))
         await conn.disconnect()

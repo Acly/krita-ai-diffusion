@@ -273,6 +273,8 @@ def test_prepare_lora():
         "PINK_UNICORNS.safetensors",
         "MOTHER_OF_PEARL.safetensors",
         "x/FRACTAL.safetensors",
+        "DOCUMENT.safetensors",
+        "DISABLED.safetensors",
     ]
 
     files = FileLibrary(FileCollection(), FileCollection())
@@ -281,6 +283,10 @@ def test_prepare_lora():
 
     mop = files.loras.add(File.remote("MOTHER_OF_PEARL.safetensors"))
     files.loras.set_meta(mop, "lora_triggers", "crab")
+    document_lora = files.loras.add(File.remote("DOCUMENT.safetensors"))
+    files.loras.set_meta(document_lora, "lora_triggers", "detail")
+    disabled_lora = files.loras.add(File.remote("DISABLED.safetensors"))
+    files.loras.set_meta(disabled_lora, "lora_triggers", "disabled")
     files.loras.update([File.remote(m) for m in models.loras], FileSource.remote)
 
     style = Style(Path("default.json"))
@@ -288,8 +294,13 @@ def test_prepare_lora():
     style.loras.append({"name": "MOTHER_OF_PEARL.safetensors", "strength": 0.33})
 
     cond = ConditioningInput("test <lora:PINK_UNICORNS:0.77> baloon <lora:x/FRACTAL> space")
-    result = workflow.prepare_prompts(cond, style, seed=29, arch=Arch.sd15, files=files)
-    assert result.conditioning and result.conditioning.positive == "test  baloon  space crab"
+    document_loras = [LoraInput(document_lora.id, -0.5), LoraInput(disabled_lora.id, 0)]
+    result = workflow.prepare_prompts(
+        cond, style, seed=29, arch=Arch.sd15, files=files, loras=document_loras
+    )
+    assert result.conditioning and result.conditioning.positive == "test  baloon  space crab detail"
+    assert document_loras[0] in result.loras
+    assert document_loras[1] not in result.loras
     assert result.loras
     assert LoraInput("PINK_UNICORNS.safetensors", 0.77) in result.loras
     assert LoraInput("x/FRACTAL.safetensors", 0.55) in result.loras
@@ -307,6 +318,8 @@ def test_prepare_lora():
     )
     assert job.models and job.models.loras
     assert LoraInput("MOTHER_OF_PEARL.safetensors", 0.33) in job.models.loras
+    assert document_loras[0] in job.models.loras
+    assert document_loras[1] not in job.models.loras
     assert LoraInput("PINK_UNICORNS.safetensors", 0.77) in result.loras
     assert LoraInput("x/FRACTAL.safetensors", 0.55) in result.loras
 

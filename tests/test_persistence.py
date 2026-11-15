@@ -11,7 +11,7 @@ from krita import Document as MockKritaDocument
 from krita import Krita
 from PyQt6.QtCore import QByteArray
 
-from ai_diffusion.backend.api import InpaintMode
+from ai_diffusion.backend.api import InpaintMode, LoraInput
 from ai_diffusion.backend.resources import ControlMode
 from ai_diffusion.document import KritaDocument
 from ai_diffusion.image import Bounds, Extent, Image, ImageCollection
@@ -160,6 +160,7 @@ async def test_sync(workflows_dir: Path):
     model1.edit_style = edit_style
     model1.batch_count = 3
     model1.strength = 0.75
+    model1.loras = [LoraInput("folder/detail.safetensors", 0.65), LoraInput("off.safetensors", 0)]
     model1.seed = 12345
     model1.fixed_seed = True
     model1.translation_enabled = False
@@ -200,6 +201,7 @@ async def test_sync(workflows_dir: Path):
     assert model2.edit_style is edit_style
     assert model2.batch_count == model1.batch_count
     assert model2.strength == pytest.approx(model1.strength)
+    assert model2.loras == model1.loras
     assert model2.seed == model1.seed
     assert model2.fixed_seed == model1.fixed_seed
     assert model2.translation_enabled == model1.translation_enabled
