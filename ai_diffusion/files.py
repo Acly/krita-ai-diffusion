@@ -116,6 +116,8 @@ class File:
 
 class FileCollection(QAbstractListModel):
     source_role = Qt.ItemDataRole.UserRole + 1
+    file_role = Qt.ItemDataRole.UserRole + 2
+    search_role = Qt.ItemDataRole.UserRole + 3
     collected = pyqtSignal()
 
     def __init__(self, database: Path | None = None, parent=None):
@@ -137,10 +139,14 @@ class FileCollection(QAbstractListModel):
                     return item.display_name
                 case Qt.ItemDataRole.DecorationRole:
                     return item.icon
-                case Qt.ItemDataRole.UserRole:
+                case Qt.ItemDataRole.UserRole | Qt.ItemDataRole.ToolTipRole:
                     return item.id
                 case FileCollection.source_role:
                     return item.source.value
+                case FileCollection.file_role:
+                    return item
+                case FileCollection.search_role:
+                    return f"{item.display_name}\n{item.id}"
                 case _:
                     return None
 
@@ -426,6 +432,8 @@ class FileFilter(QSortFilterProxyModel):
         super().__init__(parent)
         self._available_only = False
         self._name_prefix = ""
+        self._arch = Arch.auto
+        self._excluded_files: set[str] = set()
         self.setSourceModel(source)
         self.setSortCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.sort(0)
@@ -448,6 +456,24 @@ class FileFilter(QSortFilterProxyModel):
         self._name_prefix = value
         self.invalidateFilter()
 
+    @property
+    def arch(self):
+        return self._arch
+
+    @arch.setter
+    def arch(self, value: Arch):
+        self._arch = value
+        self.invalidateFilter()
+
+    @property
+    def excluded_files(self):
+        return self._excluded_files
+
+    @excluded_files.setter
+    def excluded_files(self, value: set[str]):
+        self._excluded_files = value.copy()
+        self.invalidateFilter()
+
     def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex):
         if src := self.sourceModel():
             index = src.index(source_row, 0, source_parent)
@@ -458,6 +484,16 @@ class FileFilter(QSortFilterProxyModel):
             if self._name_prefix:
                 name = src.data(index)
                 if not name.startswith(self._name_prefix):
+                    return False
+            if self._excluded_files or self._arch not in (Arch.auto, Arch.all):
+                file: File = src.data(index, FileCollection.file_role)
+                if file.id in self._excluded_files:
+                    return False
+                if (
+                    file.arch not in (None, Arch.auto, Arch.all)
+                    and self._arch not in (Arch.auto, Arch.all)
+                    and not Arch.is_compatible(file.arch, self._arch)
+                ):
                     return False
         return True
 

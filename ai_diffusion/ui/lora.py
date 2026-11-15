@@ -4,7 +4,18 @@ from html import escape as html_escape
 from pathlib import Path
 
 from krita import Krita
-from PyQt6.QtCore import QEvent, QObject, QPoint, QRect, QRectF, QSize, Qt, pyqtSignal
+from PyQt6.QtCore import (
+    QEvent,
+    QModelIndex,
+    QObject,
+    QPoint,
+    QRect,
+    QRectF,
+    QSize,
+    QSortFilterProxyModel,
+    Qt,
+    pyqtSignal,
+)
 from PyQt6.QtGui import QColor, QImage, QKeyEvent, QPainter, QPainterPath, QPalette, QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
@@ -17,8 +28,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
+    QListView,
     QMenu,
     QMessageBox,
     QPushButton,
@@ -34,7 +44,7 @@ from PyQt6.QtWidgets import (
 
 from ..backend.resources import Arch
 from ..document import Document
-from ..files import File, FileFilter, FileFormat, FileSource
+from ..files import File, FileCollection, FileFilter, FileFormat, FileSource
 from ..localization import translate as _
 from ..model.model import DocumentModel
 from ..model.root import root
@@ -619,6 +629,9 @@ def _show_file_too_large_warning(max_size: int, parent=None):
 
 
 class LoraSelectionDelegate(QStyledItemDelegate):
+    def sizeHint(self, option, index):
+        return QSize(0, 48)
+
     def paint(self, painter: QPainter | None, option: QStyleOptionViewItem, index):
         if painter is None:
             return
@@ -630,7 +643,7 @@ class LoraSelectionDelegate(QStyledItemDelegate):
         style = option.widget.style() if option.widget else QApplication.style()
         assert style is not None
         style.drawControl(QStyle.ControlElement.CE_ItemViewItem, background, painter, option.widget)
-        file = root.files.loras.find(index.data(Qt.ItemDataRole.UserRole))
+        file = index.data(FileCollection.file_role)
         if file is None:
             return
         painter.save()
@@ -665,22 +678,30 @@ class LoraSelectionDialog(QDialog):
         super().__init__(parent, Qt.WindowType.Popup)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self._model = model
+        self._loras = FileFilter(root.files.loras, self)
+        self._loras.available_only = True
+        self._search_filter = QSortFilterProxyModel(self)
+        self._search_filter.setSourceModel(self._loras)
+        self._search_filter.setFilterRole(FileCollection.search_role)
+        self._search_filter.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
 
         self.search = QLineEdit(self)
         self.search.setPlaceholderText(_("Search LoRA"))
         self.search.installEventFilter(self)
         self.folders = QComboBox(self)
         self.folders.setMinimumWidth(100)
-        self.items = QListWidget(self)
+        self.items = QListView(self)
+        self.items.setModel(self._search_filter)
+        self.items.setUniformItemSizes(True)
         self.items.setItemDelegate(LoraSelectionDelegate(self.items))
         self.items.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.items.setMinimumHeight(100)
         self.items.setMaximumHeight(360)
-        self.items.itemClicked.connect(self._select)
-        self.items.itemActivated.connect(self._select)
+        self.items.clicked.connect(self._select)
+        self.items.activated.connect(self._select)
         self.search.returnPressed.connect(self._select_current)
-        self.search.textChanged.connect(self._filter)
-        self.folders.currentIndexChanged.connect(self._filter)
+        self.search.textChanged.connect(self._filter_text)
+        self.folders.currentIndexChanged.connect(self._filter_folder)
 
         header = QHBoxLayout()
         header.addWidget(self.search, 1)
@@ -693,9 +714,10 @@ class LoraSelectionDialog(QDialog):
 
         root.files.loras.rowsInserted.connect(self._collect_folders)
         root.files.loras.rowsRemoved.connect(self._collect_folders)
-        root.files.loras.dataChanged.connect(self._filter)
-        model.active_style_changed.connect(self._filter)
+        root.connection.models_changed.connect(self._filter_models)
+        model.active_style_changed.connect(self._filter_models)
 
+        self._filter_models()
         self._collect_folders()
 
     def open_at(self, pos: QPoint):
@@ -712,25 +734,31 @@ class LoraSelectionDialog(QDialog):
     def eventFilter(self, a0: QObject | None, a1: QEvent | None):
         if a0 is self.search and isinstance(a1, QKeyEvent) and a1.type() is QEvent.Type.KeyPress:
             if a1.key() in (Qt.Key.Key_Up, Qt.Key.Key_Down):
-                if self.items.count():
+                if count := self._search_filter.rowCount():
                     step = -1 if a1.key() == Qt.Key.Key_Up else 1
-                    row = max(0, min(self.items.currentRow() + step, self.items.count() - 1))
-                    self.items.setCurrentRow(row)
-                    if item := self.items.currentItem():
-                        self.items.scrollToItem(item)
+                    row = max(0, min(self.items.currentIndex().row() + step, count - 1))
+                    index = self._search_filter.index(row, 0)
+                    self.items.setCurrentIndex(index)
+                    self.items.scrollTo(index)
                 return True
         return super().eventFilter(a0, a1)
 
     def _collect_folders(self):
         populate_lora_folders(self.folders, LoraList.last_filter)
-        self._filter()
+        self._filter_folder()
 
-    def _filter(self):
-        query = self.search.text().casefold()
+    def _filter_text(self, text: str):
+        self._search_filter.setFilterFixedString(text)
+        self._select_first()
+
+    def _filter_folder(self):
         folder = self.folders.currentText()
         LoraList.last_filter = folder
-        prefix = folder + "/" if folder and folder != "All" else ""
-        arch = self._model.arch
+        self._loras.name_prefix = folder if folder != "All" else ""
+        self._select_first()
+
+    def _filter_models(self):
+        self._loras.arch = self._model.arch
         special = set()
         if client := root.connection.client_if_connected:
             special = {
@@ -738,32 +766,16 @@ class LoraSelectionDialog(QDialog):
                 for res, file in client.models.resources.items()
                 if file is not None and res.startswith("lora-")
             }
-        self.items.clear()
-        for file in root.files.loras:
-            if file.source is FileSource.unavailable or file.id in special:
-                continue
-            if prefix and not file.id.replace("\\", "/").startswith(prefix):
-                continue
-            if query not in file.display_name.casefold() and query not in file.id.casefold():
-                continue
-            if (
-                file.arch not in (None, Arch.auto, Arch.all)
-                and arch not in (Arch.auto, Arch.all)
-                and not Arch.is_compatible(file.arch, arch)
-            ):
-                continue
-            item = QListWidgetItem(file.display_name)
-            item.setData(Qt.ItemDataRole.UserRole, file.id)
-            item.setToolTip(file.id)
-            item.setSizeHint(QSize(0, 48))
-            self.items.addItem(item)
-        if self.items.count():
-            self.items.setCurrentRow(0)
+        self._loras.excluded_files = special
+        self._select_first()
+
+    def _select_first(self):
+        self.items.setCurrentIndex(self._search_filter.index(0, 0))
 
     def _select_current(self):
-        if item := self.items.currentItem():
-            self._select(item)
+        self._select(self.items.currentIndex())
 
-    def _select(self, item: QListWidgetItem):
-        self.selected.emit(item.data(Qt.ItemDataRole.UserRole))
-        self.close()
+    def _select(self, index: QModelIndex):
+        if index.isValid():
+            self.selected.emit(index.data(Qt.ItemDataRole.UserRole))
+            self.close()

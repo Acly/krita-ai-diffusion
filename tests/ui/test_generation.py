@@ -167,7 +167,7 @@ async def test_generate_button_label(workflows_dir: Path):
         dialog = LoraSelectionDialog(model, controls)
         dialog.selected.connect(controls._add_lora)
         dialog.folders.setCurrentText("test-loras")
-        assert dialog.items.count() == 2
+        assert dialog._search_filter.rowCount() == 2
         dialog.open_at(QPoint(10, 10))
         assert dialog.search.hasFocus()
         for key, row in [
@@ -177,10 +177,10 @@ async def test_generate_button_label(workflows_dir: Path):
             (Qt.Key.Key_Up, 0),
         ]:
             QTest.keyClick(dialog.search, key)  # type: ignore
-            assert dialog.items.currentRow() == row
+            assert dialog.items.currentIndex().row() == row
             assert dialog.search.hasFocus()
         QTest.keyClicks(dialog.search, "DETAIL")  # type: ignore
-        assert dialog.items.count() == 1
+        assert dialog._search_filter.rowCount() == 1
         assert dialog.search.text() == "DETAIL"
         assert dialog.search.hasFocus()
         dialog.grab()  # Paint the custom list delegate.

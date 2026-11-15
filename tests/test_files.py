@@ -2,7 +2,7 @@ import asyncio
 from pathlib import Path
 
 import pytest
-from PyQt6.QtCore import QModelIndex, Qt
+from PyQt6.QtCore import QModelIndex, QSortFilterProxyModel, Qt
 from PyQt6.QtGui import QColor, QIcon, QImage
 
 from ai_diffusion.backend.network import NetworkError, RequestManager
@@ -298,3 +298,46 @@ def test_sort_filter():
     filtered.name_prefix = "piong"
     assert filtered[0].id == "piong/a.txt"
     assert filtered[1].id == "piong/c.txt"
+
+    files[2].arch = Arch.sdxl
+    filtered.arch = Arch.sd15
+    assert filtered.rowCount() == 1
+    assert filtered[0].id == "piong/a.txt"
+    filtered.arch = Arch.illu
+    assert filtered.rowCount() == 2
+    filtered.arch = Arch.all
+    assert filtered.rowCount() == 2
+
+    filtered.excluded_files = {"piong/c.txt"}
+    assert filtered.rowCount() == 1
+    assert filtered[0].id == "piong/a.txt"
+    filtered.excluded_files = set()
+    assert filtered.rowCount() == 2
+
+    search = QSortFilterProxyModel()
+    search.setSourceModel(filtered)
+    search.setFilterRole(FileCollection.search_role)
+    search.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+    search.setFilterFixedString("C.TXT")
+    assert search.rowCount() == 1
+    index = search.index(0, 0)
+    assert index.data(Qt.ItemDataRole.UserRole) == "piong/c.txt"
+    assert index.data(FileCollection.file_role) is files[2]
+    search.setFilterFixedString("missing")
+    assert search.rowCount() == 0
+    search.setFilterFixedString("")
+    assert search.rowCount() == 2
+
+    files[2].arch = Arch.sd15
+    filtered.arch = Arch.sd15
+    assert search.rowCount() == 2
+    files[2].arch = Arch.sdxl
+    files.notify(files[2])
+    assert search.rowCount() == 1
+
+    windows_path = File.remote(r"piong\windows.safetensors", FileFormat.lora)
+    files.add(windows_path)
+    search.setFilterFixedString("piong/windows")
+    assert search.rowCount() == 1
+    search.setFilterFixedString(r"piong\windows")
+    assert search.rowCount() == 1
