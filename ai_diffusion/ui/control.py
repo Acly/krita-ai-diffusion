@@ -48,8 +48,13 @@ from ..model.region import Region
 from ..model.root import root
 from . import theme
 from .interval_slider import IntervalSlider
-from .lora import LoraSelectionDialog, lora_pixmap
-from .style import LoraPreviewMenu, LoraStrengthSpinBox, LoraThumbnail
+from .lora import (
+    LoraPreviewMenu,
+    LoraSelectionDialog,
+    LoraStrengthSpinBox,
+    LoraThumbnail,
+    lora_pixmap,
+)
 from .theme import SignalBlocker
 
 THUMBNAIL_HEIGHT = 64

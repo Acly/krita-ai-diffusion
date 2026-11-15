@@ -19,8 +19,7 @@ from ai_diffusion.settings import settings
 from ai_diffusion.style import Style
 from ai_diffusion.ui.control import ControlAdvancedPanel, LoraAdvancedPanel
 from ai_diffusion.ui.generation import GenerationWidget
-from ai_diffusion.ui.lora import LoraSelectionDialog
-from ai_diffusion.ui.style import LoraPreviewMenu
+from ai_diffusion.ui.lora import LoraPreviewMenu, LoraSelectionDialog
 
 from ..conftest import qtapp
 from ..mock.client import MockClient
