@@ -87,7 +87,6 @@ class Arch(Enum):
     qwen = "Qwen"
     qwen_e = "Qwen Edit"
     qwen_e_p = "Qwen Edit Plus"
-    qwen_l = "Qwen Layered"
     qwen2 = "Qwen 2"
     anima = "Anima"
     zimage = "Z-Image"
@@ -127,8 +126,6 @@ class Arch(Enum):
                 return Arch.qwen_e_p
             else:
                 return Arch.qwen_e
-        if string == "qwen-image" and "layered" in filename:
-            return Arch.qwen_l
         if string == "qwen-image":
             return Arch.qwen
         if string == "qwen-image21":
@@ -204,7 +201,7 @@ class Arch(Enum):
 
     @property
     def is_edit(self):  # edit models make changes to input images
-        return self in [Arch.flux_k, Arch.qwen_e, Arch.qwen_e_p, Arch.qwen_l]
+        return self in [Arch.flux_k, Arch.qwen_e, Arch.qwen_e_p]
 
     @property
     def supports_edit(self):  # includes text-to-image models that can also edit
@@ -225,7 +222,7 @@ class Arch(Enum):
 
     @property
     def is_qwen_like(self):
-        return self in [Arch.qwen, Arch.qwen_e, Arch.qwen_e_p, Arch.qwen_l]
+        return self in [Arch.qwen, Arch.qwen_e, Arch.qwen_e_p]
 
     @property
     def text_encoders(self):
@@ -244,7 +241,7 @@ class Arch(Enum):
                 return ["qwen_3_8b"]
             case Arch.chroma:
                 return ["t5"]
-            case Arch.qwen | Arch.qwen_e | Arch.qwen_e_p | Arch.qwen_l:
+            case Arch.qwen | Arch.qwen_e | Arch.qwen_e_p:
                 return ["qwen"]
             case Arch.qwen2:
                 return ["qwen_3vl_8b"]
@@ -275,7 +272,6 @@ class Arch(Enum):
             Arch.qwen,
             Arch.qwen_e,
             Arch.qwen_e_p,
-            Arch.qwen_l,
             Arch.qwen2,
             Arch.anima,
             Arch.zimage,
@@ -842,7 +838,6 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.vae, Arch.qwen, "default"): ["qwen"],
     resource_id(ResourceKind.vae, Arch.qwen_e, "default"): ["qwen"],
     resource_id(ResourceKind.vae, Arch.qwen_e_p, "default"): ["qwen"],
-    resource_id(ResourceKind.vae, Arch.qwen_l, "default"): ["qwen_image_layered_vae"],
     resource_id(ResourceKind.vae, Arch.qwen2, "default"): ["qwen_image_2.1_vae"],
     resource_id(ResourceKind.vae, Arch.anima, "default"): ["qwen_image"],
     resource_id(ResourceKind.vae, Arch.zimage, "default"): ["z-image", "flux-", "flux_", "flux/", "flux1", "ae.s"],

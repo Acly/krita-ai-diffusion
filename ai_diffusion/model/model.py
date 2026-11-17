@@ -148,7 +148,6 @@ class DocumentModel(QObject, ObservableProperties):
     resolution_multiplier = Property(1.0, persist=True)
     queue_mode = Property(QueueMode.back, persist=True)
     translation_enabled = Property(True, persist=True)
-    layer_count = Property(4, persist=True)
     progress_kind = Property(ProgressKind.generation)
     progress = Property(0.0)
     error = Property(no_error)
@@ -167,7 +166,6 @@ class DocumentModel(QObject, ObservableProperties):
     resolution_multiplier_changed = pyqtSignal(float)
     queue_mode_changed = pyqtSignal(QueueMode)
     translation_enabled_changed = pyqtSignal(bool)
-    layer_count_changed = pyqtSignal(int)
     progress_kind_changed = pyqtSignal(ProgressKind)
     progress_changed = pyqtSignal(float)
     error_changed = pyqtSignal(Error)
@@ -282,8 +280,6 @@ class DocumentModel(QObject, ObservableProperties):
         arch = self.arch
         workflow_kind = WorkflowKind.generate
         strength = self.strength
-        if arch is Arch.qwen_l:
-            strength = 1.0
         if strength < 1.0 or self.is_editing:
             workflow_kind = WorkflowKind.refine
         client = self._connection.client
@@ -346,7 +342,6 @@ class DocumentModel(QObject, ObservableProperties):
             strength=strength,
             loras=loras,
             inpaint=inpaint,
-            layer_count=self.layer_count,
         )
         loras = input.models.loras if input.models else []
         job_name = prompt_meta.get("prompt_eval", prompt_meta["prompt"])
@@ -355,7 +350,6 @@ class DocumentModel(QObject, ObservableProperties):
         job_params.set_control(self.control)
         job_params.inpaint_mode = inpaint_mode
         job_params.ref_layers = ref_layers
-        job_params.is_layered = arch is Arch.qwen_l
         job_params.metadata.update(prompt_meta)
         job_params.metadata["loras"] = [{"name": l.name, "weight": l.strength} for l in loras]
         job_params.metadata["strength"] = strength

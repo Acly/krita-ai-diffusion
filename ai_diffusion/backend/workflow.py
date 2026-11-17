@@ -153,7 +153,7 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
             case Arch.chroma:
                 clip = w.load_clip(te["t5"], type="chroma")
                 clip = w.t5_tokenizer_options(clip, min_padding=1, min_length=0)
-            case Arch.qwen | Arch.qwen_e | Arch.qwen_e_p | Arch.qwen_l:
+            case Arch.qwen | Arch.qwen_e | Arch.qwen_e_p:
                 clip = w.load_clip(te["qwen"], type="qwen_image")
             case Arch.anima:
                 clip = w.load_clip(te["qwen_3_06b"], type="omnigen2")
@@ -214,18 +214,6 @@ def vae_decode(w: ComfyWorkflow, vae: Output, latent: Output, tiled: bool):
     if tiled:
         return w.vae_decode_tiled(vae, latent)
     return w.vae_decode(vae, latent)
-
-
-def setup_latent_layers(w: ComfyWorkflow, latent: Output, extent: Extent, layer_count: int):
-    if layer_count > 1:
-        latent = w.empty_latent_layers(extent, layer_count)
-    return latent
-
-
-def pack_latent_layers(w: ComfyWorkflow, latent: Output, params: MiscParams):
-    if params.layer_count > 1:
-        latent = w.cut_latent_to_batch(latent, dim="t", slice=params.batch_count)
-    return latent
 
 
 class ImageReshape(NamedTuple):
@@ -867,7 +855,6 @@ def ensure_minimum_extent(w: ComfyWorkflow, image: Output, extent: Extent, min_e
 
 class MiscParams(NamedTuple):
     batch_count: int
-    layer_count: int
     color_match: float
     nsfw_filter: float
 
@@ -1170,11 +1157,9 @@ def refine(
     prompt, latent = encode_prompt(w, cond, clip, vae, regions, in_image, checkpoint.tiled_vae)
     latent = latent or vae_encode(w, vae, in_image, checkpoint.tiled_vae)
     latent_batch = w.batch_latent(latent, misc.batch_count)
-    latent_batch = setup_latent_layers(w, latent_batch, extent.desired, misc.layer_count)
     model, prompt = apply_control(w, model, prompt, cond.all_control, extent.desired, vae, models)
     sampler_params = _sampler_params(sampling, extent.desired)
     sampler = w.sampler_custom_advanced(model, prompt, latent_batch, models.arch, **sampler_params)
-    sampler = pack_latent_layers(w, sampler, misc)
     out_image = vae_decode(w, vae, sampler, checkpoint.tiled_vae)
     out_image = w.nsfw_filter(out_image, sensitivity=misc.nsfw_filter)
     out_image = scale_to_target(extent, w, out_image, models)
@@ -1650,7 +1635,6 @@ def prepare(
     upscale_factor: float = 1.0,
     upscale: UpscaleInput | None = None,
     is_live: bool = False,
-    layer_count: int = 1,
 ) -> WorkflowInput:
     """
     Takes UI model state, prepares images, normalizes inputs, and returns a WorkflowInput object
@@ -1746,7 +1730,6 @@ def prepare(
         i.models.dynamic_caching = False  # inpaint model incompatible with dynamic caching
 
     i.batch_count = 1 if is_live else i.batch_count
-    i.images.layer_count = layer_count if arch is Arch.qwen_l else 1
     i.color_match = 1.0 if settings.color_match else 0.0
     i.nsfw_filter = settings.nsfw_filter
     return i
@@ -1783,8 +1766,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
     This should be a pure function, the workflow is entirely defined by the input.
     """
     workflow = ComfyWorkflow(models.node_inputs, comfy_mode)
-    layer_count = i.images.layer_count if i.images else 1
-    misc = MiscParams(i.batch_count, layer_count, i.color_match, i.nsfw_filter)
+    misc = MiscParams(i.batch_count, i.color_match, i.nsfw_filter)
 
     if i.kind is WorkflowKind.generate:
         return generate(

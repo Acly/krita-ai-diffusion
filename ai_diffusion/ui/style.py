@@ -471,7 +471,7 @@ class StylePresets(SettingsTab):
         elif arch.is_flux_like:
             valid_archs = (Arch.auto, Arch.flux, Arch.flux_k)
         elif arch.is_qwen_like:
-            valid_archs = (Arch.auto, Arch.qwen, Arch.qwen_e, Arch.qwen_e_p, Arch.qwen_l)
+            valid_archs = (Arch.auto, Arch.qwen, Arch.qwen_e, Arch.qwen_e_p)
         elif arch.is_flux2:
             valid_archs = (Arch.auto, Arch.flux2_4b, Arch.flux2_9b)
         else:

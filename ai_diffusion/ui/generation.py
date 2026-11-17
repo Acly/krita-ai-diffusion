@@ -26,7 +26,6 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from ..backend.resources import Arch
 from ..backend.workflow import InpaintMode
 from ..localization import translate as _
 from ..model.jobs import JobKind
@@ -45,7 +44,6 @@ from .settings_widgets import ExpanderButton
 from .widget import (
     ErrorBox,
     GenerateButton,
-    LayerCountWidget,
     LiveToggleButton,
     SeedWidget,
     StrengthWidget,
@@ -266,10 +264,6 @@ class GenerationWidget(QWidget):
         self.control_list = ControlListWidget(self._model, self)
         layout.addWidget(self.control_list)
 
-        self.layer_count_widget = LayerCountWidget(self)
-        self.layer_count_widget.setVisible(False)
-        layout.addWidget(self.layer_count_widget)
-
         self.mode_button = QToolButton(self.mode_area)
         self.mode_button.setAutoRaise(True)
         self.mode_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
@@ -311,7 +305,6 @@ class GenerationWidget(QWidget):
                 bind(model, "workspace", self.workspace_select, "value", Bind.one_way),
                 bind(model, "active_style", self.style_select, "value"),
                 bind(model, "strength", self.strength_slider, "value"),
-                bind(model, "layer_count", self.layer_count_widget, "value"),
                 bind(model, "error", self.error_box, "error", Bind.one_way),
                 model.inpaint.mode_changed.connect(self.update_generate_options),
                 model.strength_changed.connect(self.update_generate_options),
@@ -402,10 +395,6 @@ class GenerationWidget(QWidget):
     def update_generate_options(self):
         if not self.model.has_document:
             return
-
-        arch = self.model.arch
-        self.strength_slider.setVisible(arch is not Arch.qwen_l)
-        self.layer_count_widget.setVisible(arch is Arch.qwen_l)
 
         regions = self.model.regions
         self.region_prompt.regions = regions
