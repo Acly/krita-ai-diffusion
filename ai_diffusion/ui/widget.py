@@ -22,6 +22,7 @@ from PyQt6.QtGui import (
     QPainter,
     QPaintEvent,
     QPalette,
+    QResizeEvent,
     QSyntaxHighlighter,
     QTextCharFormat,
     QTextCursor,
@@ -516,6 +517,32 @@ class ResizeHandle(QWidget):
         for i, x in enumerate(range(2, w - 1, 3)):
             y = 2 * h // 3 if i % 2 == 0 else h // 3
             painter.drawEllipse(x - 1, y - 1, 2, 2)
+
+
+class ElidedLabel(QLabel):
+    """A label which clips its text to the available width without enforcing a minimum width."""
+
+    def __init__(self, text: str = "", parent: QWidget | None = None):
+        super().__init__(parent)
+        self._full_text = text
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self._update_text()
+
+    def setText(self, a0: str | None):
+        self._full_text = a0 or ""
+        self._update_text()
+
+    def resizeEvent(self, a0: QResizeEvent | None):
+        self._update_text()
+        return super().resizeEvent(a0)
+
+    def _update_text(self):
+        metrics = QFontMetrics(self.font())
+        elided = metrics.elidedText(
+            self._full_text, Qt.TextElideMode.ElideRight, max(0, self.width() - 4)
+        )
+        if elided != super().text():
+            super().setText(elided)
 
 
 class TextPromptWidget(QPlainTextEdit):

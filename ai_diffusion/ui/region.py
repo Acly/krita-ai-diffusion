@@ -27,7 +27,7 @@ from ..model.root import root
 from ..util import ensure
 from . import theme
 from .settings import settings
-from .widget import TextPromptWidget
+from .widget import ElidedLabel, TextPromptWidget
 
 
 class InactiveRegionWidget(QFrame):
@@ -35,12 +35,10 @@ class InactiveRegionWidget(QFrame):
 
     region: RootRegion | Region
 
-    _text: str
-
     def __init__(self, region: RootRegion | Region, controls: list[ControlLayer], parent: QWidget):
         super().__init__(parent)
         self.region = region
-        self._text = self.region.positive.replace("\n", " ")
+        text = region.positive.replace("\n", " ")
 
         self.setObjectName("InactiveRegionWidget")
         self.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -48,8 +46,17 @@ class InactiveRegionWidget(QFrame):
 
         thumbnail = RegionThumbnailWidget(region, self)
 
-        self._prompt = QLabel(self)
+        no_text = text == ""
+        if no_text:
+            if isinstance(region, Region):
+                text = f"{region.name} - click to add regional text"
+            else:
+                text = _("Common text prompt - click to add content")
+
+        self._prompt = ElidedLabel(text, self)
         self._prompt.setCursor(Qt.CursorShape.IBeamCursor)
+        if no_text:
+            self._prompt.setStyleSheet(f"QLabel {{ font-style: italic; color: {theme.grey}; }}")
 
         layout = QHBoxLayout()
         layout.setContentsMargins(0, 0, 5, 0)
@@ -64,20 +71,9 @@ class InactiveRegionWidget(QFrame):
             label.setToolTip(f"{control.mode.text}: {control.layer.name}")
             layout.addWidget(label)
 
-        if self._text == "":
-            self._prompt.setStyleSheet(f"QLabel {{ font-style: italic; color: {theme.grey}; }}")
-            if isinstance(region, Region):
-                self._text = f"{region.name} - click to add regional text"
-            else:
-                self._text = _("Common text prompt - click to add content")
-
     def mousePressEvent(self, a0: QMouseEvent | None) -> None:
         self.activated.emit(self.region)
         return super().mousePressEvent(a0)
-
-    def resizeEvent(self, a0: QResizeEvent | None) -> None:
-        theme.set_text_clipped(self._prompt, self._text)
-        return super().resizeEvent(a0)
 
 
 class PromptHeader(Enum):
@@ -106,7 +102,7 @@ class ActiveRegionWidget(QFrame):
         self.setStyleSheet(self._style_base)
 
         self._header_icon = RegionThumbnailWidget(self._region, self)
-        self._header_label = QLabel(self)
+        self._header_label = ElidedLabel(parent=self)
         self._header_label.setStyleSheet(f"font-style: italic; color: {theme.grey};")
 
         self._link_button = QToolButton(self)
@@ -288,9 +284,7 @@ class ActiveRegionWidget(QFrame):
             self._header_label.setText(_("Text prompt common to all regions"))
             self._header_icon.set_region(self._region)
         elif isinstance(self._region, Region):
-            theme.set_text_clipped(
-                self._header_label, f"{self._region.name} - " + _("Regional text prompt")
-            )
+            self._header_label.setText(f"{self._region.name} - " + _("Regional text prompt"))
             active_layer = self._root.layers.active
             link_enabled = False
             if self._region.is_linked(active_layer, RegionLink.direct):
@@ -478,7 +472,7 @@ class ActiveRegionWidget(QFrame):
                 settings.prompt_line_count = new_line_count
             self._update_prompt_widgets()
 
-    def resizeEvent(self, a0):
+    def resizeEvent(self, a0: QResizeEvent | None):
         super().resizeEvent(a0)
         self._layout_language_button()
 
