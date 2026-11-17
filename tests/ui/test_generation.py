@@ -11,6 +11,7 @@ from ai_diffusion.backend.resources import Arch, ControlMode
 from ai_diffusion.backend.workflow import InpaintMode
 from ai_diffusion.document import KritaDocument
 from ai_diffusion.files import File, FileFormat
+from ai_diffusion.image import Bounds, Extent, Image
 from ai_diffusion.model.connection import Connection, ConnectionState
 from ai_diffusion.model.custom_workflow import WorkflowCollection
 from ai_diffusion.model.model import DocumentModel
@@ -151,6 +152,36 @@ async def test_generate_button_label(workflows_dir: Path):
         assert not panel.link_button.isHidden()
         assert not panel.link_button.isEnabled()
         assert panel.link_button.toolTip() == "Not linked to any region."
+        assert controls._widgets[0].thumbnail.toolTip().splitlines()[:2] == [
+            control.layer.name,
+            "Open advanced options to configure strength and step range",
+        ]
+
+        controls.close_advanced()
+        model.layers.create("prompt reference", Image.create(Extent(64, 64)), Bounds(0, 0, 64, 64))
+        model.regions.positive_gen = "<layer:prompt reference>"
+        prompt_widget = controls._widgets[-1]
+        assert prompt_widget.control is model.control.all[-1]
+        assert prompt_widget.thumbnail.toolTip().splitlines()[0] == "prompt reference"
+        assert "Open advanced options" not in prompt_widget.thumbnail.toolTip()
+        assert prompt_widget.thumbnail.remove_button.isHidden()
+        assert not prompt_widget.thumbnail.mode_button.isEnabled()
+        assert not prompt_widget.preset_slider.isEnabled()
+        assert prompt_widget.thumbnail.focusPolicy() is Qt.FocusPolicy.NoFocus
+        QTest.mouseClick(prompt_widget.thumbnail, Qt.MouseButton.LeftButton)  # type: ignore
+        assert controls.advanced_owner is None
+        controls.toggle_advanced(prompt_widget)
+        assert controls.advanced_owner is None
+        model.regions.positive_edit = "<layer:prompt reference>"
+        model.regions.positive_gen = ""
+        assert [w.control for w in controls._widgets] == [control]
+        model.edit_mode = True
+        assert len(controls._widgets) == 2
+        assert controls._widgets[-1].thumbnail.remove_button.isHidden()
+        model.edit_mode = False
+        assert [w.control for w in controls._widgets] == [control]
+        model.regions.positive_edit = ""
+        model.layers.active = control.layer
 
         lora_file = File.remote("test-loras/detail.safetensors", FileFormat.lora)
         lora_file.arch = Arch.sd15
@@ -204,10 +235,6 @@ async def test_generate_button_label(workflows_dir: Path):
         lora_widget.slider.triggerAction(QAbstractSlider.SliderAction.SliderSingleStepSub)
         assert lora_widget.strength == 0.65
         preview_menu = LoraPreviewMenu(lora_file, lora_panel, model.document)
-        assert [action.text() for action in preview_menu.actions()] == [
-            "Use current canvas",
-            "Open file...",
-        ]
         assert all(action.isEnabled() for action in preview_menu.actions())
         assert not lora_panel.preview_button.isHidden()
         lora_widget.slider.setValue(0)

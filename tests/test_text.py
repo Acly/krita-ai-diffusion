@@ -1,5 +1,4 @@
-from ai_diffusion.backend.api import ConditioningInput, ControlInput, LoraInput
-from ai_diffusion.backend.resources import ControlMode
+from ai_diffusion.backend.api import LoraInput
 from ai_diffusion.files import File, FileCollection
 from ai_diffusion.image import Bounds
 from ai_diffusion.model.jobs import JobParams
@@ -177,39 +176,26 @@ def test_extract_loras_meta():
 
 
 def test_extract_layers():
-    prompt = ConditioningInput(
-        "A beautiful scenery <layer:Background> and a cat <layer:Foreground>"
-    )
-    layers = extract_layers(prompt)
-    modified_prompt = replace_layers(prompt.positive, layers, replacement="Picture {}")
+    prompt = "A beautiful scenery <layer:Background> and a cat <layer:Foreground:0.7>"
+    assert extract_layers(prompt) == {"Background": 1.0, "Foreground": 0.7}
+    modified_prompt = replace_layers(prompt, {"Background": 1, "Foreground": 2})
     assert modified_prompt == "A beautiful scenery Picture 1 and a cat Picture 2"
-    assert layers == {"Background": 1, "Foreground": 2}
 
-    prompt = ConditioningInput("<layer:Sky> above the mountains")
-    prompt.control = [ControlInput(ControlMode.reference)]
-    prompt.edit_reference = True
-    layers = extract_layers(prompt)
-    modified_prompt = replace_layers(prompt.positive, layers, replacement="Picture {}")
-    assert modified_prompt == "Picture 3 above the mountains"
-    assert layers == {"Sky": 3}
+    prompt = "<layer:Sky:0.5> above the mountains"
+    assert extract_layers(prompt) == {"Sky": 0.5}
+    assert replace_layers(prompt, {"Sky": 3}) == "Picture 3 above the mountains"
 
-    prompt = ConditioningInput("No layers here")
-    layers = extract_layers(prompt)
-    modified_prompt = replace_layers(prompt.positive, layers, replacement="Picture {}")
-    assert modified_prompt == "No layers here"
-    assert layers == {}
+    prompt = "No layers here"
+    assert extract_layers(prompt) == {}
+    assert replace_layers(prompt, {}) == prompt
 
-    prompt = ConditioningInput("<layer:layer (merged)> and <layer:ba<yer:k>")
-    layers = extract_layers(prompt)
-    modified_prompt = replace_layers(prompt.positive, layers, replacement="{}")
-    assert modified_prompt == "1 and 2"
-    assert layers == {"layer (merged)": 1, "ba<yer:k": 2}
+    prompt = "<layer:layer (merged)> and <layer:ba<yer:k>"
+    assert extract_layers(prompt) == {"layer (merged)": 1.0, "ba<yer:k": 1.0}
+    assert replace_layers(prompt, {"layer (merged)": 1, "ba<yer:k": 2}, "{}") == "1 and 2"
 
-    prompt = ConditioningInput("<layer:foo> <layer:bar> <layer:foo>")
-    layers = extract_layers(prompt)
-    modified_prompt = replace_layers(prompt.positive, layers, replacement="{}")
-    assert modified_prompt == "1 2 1"
-    assert layers == {"foo": 1, "bar": 2}
+    prompt = "<layer:foo:0.6> <layer:bar> <layer:foo:0.6>"
+    assert extract_layers(prompt) == {"foo": 0.6, "bar": 1.0}
+    assert replace_layers(prompt, {"foo": 1, "bar": 2}, "{}") == "1 2 1"
 
 
 def test_wildcards():

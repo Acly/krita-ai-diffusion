@@ -20,6 +20,7 @@ from ai_diffusion.document import KritaDocument
 from ai_diffusion.image import BlendMode, Bounds, Extent, Image, ImageCollection
 from ai_diffusion.layer import Layer, LayerType
 from ai_diffusion.model.connection import Connection, ConnectionState
+from ai_diffusion.model.control import PromptKind
 from ai_diffusion.model.custom_workflow import WorkflowCollection
 from ai_diffusion.model.jobs import Job, JobKind, JobParams, JobRegion, JobState
 from ai_diffusion.model.model import DocumentModel, ErrorKind, ProgressKind, no_error
@@ -236,6 +237,28 @@ async def test_generate_references(workflows_dir: Path):
 
         # Reference layers "b" and "c" (with a duplicate "b") via the prompt
         model.regions.positive = "Use <layer:b> and <layer:c>, repeat <layer:b>"
+        assert len(model.control.all) == 3
+        reference_b, reference_c = model.control.all[1:]
+        assert ctrl.prompt_kind is PromptKind.none
+        assert reference_b.prompt_kind is PromptKind.generate
+        assert reference_c.prompt_kind is PromptKind.generate
+        assert reference_b.layer.name == "b"
+        assert reference_c.layer.name == "c"
+        controls, mapping = model.control.to_api()
+        assert len(controls) == 3
+        assert mapping == {"a": 1, "b": 2, "c": 3}
+        _, offset_mapping = model.control.to_api(start_index=2)
+        assert offset_mapping == {"a": 2, "b": 3, "c": 4}
+        assert model.control.to_api()[1] == mapping
+
+        model.regions.positive = "Use <layer:b:0.5> and <layer:c>, repeat <layer:b:0.5>"
+        assert reference_b.strength == 25
+        model.regions.positive = "Use <layer:b:0> and <layer:c>, repeat <layer:b:0>"
+        controls, mapping = model.control.to_api()
+        assert len(controls) == 2
+        assert mapping == {"a": 1, "b": 0, "c": 2}
+        model.regions.positive = "Use <layer:b> and <layer:c>, repeat <layer:b>"
+        assert reference_b.strength == 50
         model.generate()
 
         result = await _wait_for_enqueue(client)
@@ -255,9 +278,40 @@ async def test_generate_references(workflows_dir: Path):
         assert Image.compare(img_b, layer_images["b"]) < 0.01
         assert Image.compare(img_c, layer_images["c"]) < 0.01
 
-        # Indexing starts at 2 because in edit mode the first image is always
-        # implicitly the canvas.
+        # The manually added reference occupies the first image index.
         assert cond.positive == "Use image 2 and image 3, repeat image 2"
+
+        model.regions.positive_gen = "Use <layer:a> and <layer:c:0.8>, repeat <layer:a>"
+        assert model.control.all == [ctrl, reference_c]
+        assert ctrl.prompt_kind is PromptKind.none
+        assert reference_c.strength == 40
+
+        model.regions.positive_edit = "<layer:c:0.6> <layer:b>"
+        edit_b = model.control.all[-1]
+        assert edit_b.prompt_kind is PromptKind.edit
+        assert reference_c.prompt_kind == PromptKind.generate | PromptKind.edit
+        assert list(model.control) == [ctrl, reference_c]
+        assert reference_c.strength == 40
+        model.edit_mode = True
+        assert list(model.control) == [ctrl, reference_c, edit_b]
+        assert reference_c.strength == 30
+        model.edit_mode = False
+        assert list(model.control) == [ctrl, reference_c]
+        assert reference_c.strength == 40
+
+        model.regions.positive_gen = "No reference tags"
+        assert reference_c.prompt_kind is PromptKind.edit
+        assert list(model.control) == [ctrl]
+        assert model.control.all == [ctrl, reference_c, edit_b]
+        model.regions.positive_edit = ""
+        assert model.control.all == [ctrl]
+
+        model.regions.positive = "<layer:c> <layer:c>"
+        assert len(model.control.all) == 2
+        model.regions.positive = "<layer:c>"
+        assert len(model.control.all) == 2
+        model.regions.positive = ""
+        assert model.control.all == [ctrl]
 
 
 @qtapp
@@ -290,8 +344,10 @@ async def test_control_layers(workflows_dir: Path):
         model.regions.active = regions[0]
         first = model.control.emplace()
         first.mode = ControlMode.reference
+        first.layer_id = region_layers[0].id
         model.regions.active = regions[1]
         second = model.control.emplace()
+        second.layer_id = region_layers[1].id
         assert second.region is regions[1]
         assert list(model.control) == [common, second]
         assert len(model.control) == 2
@@ -300,13 +356,16 @@ async def test_control_layers(workflows_dir: Path):
 
         assert first.is_supported, first.error_text
         assert second.is_supported, second.error_text
-        conditioning, _ = process_regions(model.regions, bounds)
+        conditioning, _, mapping = process_regions(model.regions, bounds)
+        assert mapping == {"left": 1, "right": 2}
         assert [c.mode for c in conditioning.control] == [ControlMode.depth]
         assert len(conditioning.regions) == 2
         for region in conditioning.regions:
             assert [c.mode for c in region.control] == [ControlMode.reference]
 
-        conditioning, _ = process_regions(model.regions, left)
+        conditioning, _, mapping = process_regions(model.regions, left)
+        assert mapping == {"left": 1}
+        assert process_regions(model.regions, bounds)[2] == {"left": 1, "right": 2}
         assert not conditioning.regions
         assert [c.mode for c in conditioning.control] == [ControlMode.depth, ControlMode.reference]
 
@@ -330,7 +389,7 @@ async def test_control_layers(workflows_dir: Path):
         edit_reference = model.control.emplace()
         assert edit_reference.mode is ControlMode.reference
         assert list(model.control) == [first, edit_reference]
-        conditioning, _ = process_regions(model.regions, bounds)
+        conditioning, _, _ = process_regions(model.regions, bounds)
         assert [c.mode for c in conditioning.control] == [
             ControlMode.reference,
             ControlMode.reference,

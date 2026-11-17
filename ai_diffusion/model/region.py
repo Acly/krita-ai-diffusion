@@ -62,6 +62,7 @@ class Region(QObject, ObservableProperties):
             self.positive_gen = value
 
     def _update_positive(self, *_):
+        self._parent.prompts_changed.emit()
         self.positive_changed.emit(self.positive)
 
     def _get_layers(self):
@@ -184,6 +185,7 @@ class RootRegion(QObject, ObservableProperties):
     negative_changed = pyqtSignal(str)
     negative_enabled_changed = pyqtSignal(bool)
     negative_enabled_live_changed = pyqtSignal(bool)
+    prompts_changed = pyqtSignal()
     active_changed = pyqtSignal(Region)
     active_layer_changed = pyqtSignal()
     added = pyqtSignal(Region)
@@ -218,6 +220,7 @@ class RootRegion(QObject, ObservableProperties):
             self.positive_gen = value
 
     def _update_positive(self, *_):
+        self.prompts_changed.emit()
         self.positive_changed.emit(self.positive)
 
     def _find_region(self, layer: Layer):
@@ -432,19 +435,31 @@ def process_regions(
 ):
     result, jobs = _process_region_masks(root, bounds, parent_layer, min_coverage)
     controls = root._model.control
-    result.control = controls.to_api(bounds, time)
+    reference_mapping: dict[str, int] = {}
+    next_index = 2 if root._model.is_editing else 1
+
+    def export_controls(region: Region | None = None):
+        nonlocal next_index
+        inputs, mapping = controls.to_api(bounds, time, region, start_index=next_index)
+        next_index += sum(c.mode.is_ip_adapter for c in inputs)
+        for name, index in mapping.items():
+            if reference_mapping.get(name, 0) == 0:
+                reference_mapping[name] = index
+        return inputs
+
+    result.control = export_controls()
     parent = root.find_linked(parent_layer) if parent_layer else None
     if parent:
-        result.control += controls.to_api(bounds, time, parent)
+        result.control += export_controls(parent)
     if result.regions:
         for region_input, job in zip(result.regions, jobs):
             if not job.is_background and (layer := root.layers.find(QUuid(job.layer_id))):
                 if region := root.find_linked(layer):
-                    region_input.control = controls.to_api(bounds, time, region)
+                    region_input.control = export_controls(region)
     elif jobs and (layer := root.layers.find(QUuid(jobs[0].layer_id))):
         if (region := root.find_linked(layer)) and region is not parent:
-            result.control += controls.to_api(bounds, time, region)
-    return result, jobs
+            result.control += export_controls(region)
+    return result, jobs, reference_mapping
 
 
 def _process_region_masks(

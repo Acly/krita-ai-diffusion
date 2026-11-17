@@ -470,8 +470,9 @@ class ControlThumbnail(QWidget):
         self.control = owner.control
         self._pixmap = QPixmap()
         self.setFixedSize(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT)
-        self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        if not self.control.prompt_kind:
+            self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.mode_button = self._create_badge(2, _("Select control layer content"))
         self.mode_button.clicked.connect(self._show_mode_menu)
         self.remove_button = self._create_badge(
@@ -505,6 +506,12 @@ class ControlThumbnail(QWidget):
     def refresh(self):
         try:
             layer = self.control.layer
+            tooltip = layer.name
+            if not self.control.prompt_kind:
+                tooltip += "\n" + _("Open advanced options to configure strength and step range")
+            if not self.control.is_supported:
+                tooltip += "\n" + self.control.error_text
+            self.setToolTip(tooltip)
             size = layer.bounds.extent.at_least(1).scale_keep_aspect(
                 Extent(THUMBNAIL_WIDTH * 2, THUMBNAIL_HEIGHT * 2)
             )
@@ -578,7 +585,7 @@ class ControlThumbnail(QWidget):
     def mouseReleaseEvent(self, a0: QMouseEvent | None):
         if not a0 or a0.button() is not Qt.MouseButton.LeftButton:
             return super().mouseReleaseEvent(a0)
-        if self.control.has_active_job:
+        if self.control.has_active_job or self.control.prompt_kind:
             return
         if self.rect().contains(a0.pos()):
             self.owner.list_widget.toggle_advanced(self.owner)
@@ -641,6 +648,8 @@ class ControlWidget(QWidget):
         self.control_list.remove(self.control)
 
     def show_mode_menu(self, pos: QPoint):
+        if self.control.prompt_kind:
+            return
         menu = QMenu(self)
         for mode in (mode for mode in ControlMode if not mode.is_internal):
             action = QAction(theme.icon(f"control-{mode.name}"), mode.text, menu)
@@ -688,22 +697,21 @@ class ControlWidget(QWidget):
         self.thumbnail.update()
 
     def _update_mode(self):
+        self.thumbnail.mode_button.setEnabled(not self.control.prompt_kind)
         self.thumbnail.mode_button.setIcon(theme.icon(f"control-{self.control.mode.name}"))
         self.thumbnail.update()
 
     def _update_support(self):
-        self.preset_slider.setEnabled(self.control.is_supported and not self.control.has_active_job)
-        self.thumbnail.setToolTip(
-            _("Open advanced options to configure strength and step range")
-            if self.control.is_supported
-            else self.control.error_text
-        )
-        self.thumbnail.update()
+        editable = not self.control.prompt_kind and not self.control.has_active_job
+        self.preset_slider.setEnabled(self.control.is_supported and editable)
+        self.thumbnail.refresh()
 
     def _update_job(self):
         self.thumbnail.mode_button.setVisible(not self.control.has_active_job)
-        self.thumbnail.remove_button.setVisible(not self.control.has_active_job)
-        self.preset_slider.setEnabled(self.control.is_supported and not self.control.has_active_job)
+        self.thumbnail.remove_button.setVisible(
+            not self.control.has_active_job and not self.control.prompt_kind
+        )
+        self._update_support()
         if self.control.has_active_job:
             self.thumbnail.update()
         else:
@@ -819,6 +827,8 @@ class ControlListWidget(QWidget):
         return self._advanced_panel.owner if self._advanced_panel else None
 
     def toggle_advanced(self, owner: ControlWidget | DocumentLoraWidget):
+        if isinstance(owner, ControlWidget) and owner.control.prompt_kind:
+            return
         if self.advanced_owner is owner:
             self.close_advanced()
             return

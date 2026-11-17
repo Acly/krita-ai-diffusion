@@ -16,6 +16,7 @@ from ai_diffusion.backend.resources import ControlMode
 from ai_diffusion.document import KritaDocument
 from ai_diffusion.image import Bounds, Extent, Image, ImageCollection
 from ai_diffusion.model.connection import Connection
+from ai_diffusion.model.control import PromptKind
 from ai_diffusion.model.custom_workflow import WorkflowCollection
 from ai_diffusion.model.jobs import Job, JobKind, JobParams, JobState
 from ai_diffusion.model.model import DocumentModel, InpaintContext, MaskSource, QueueMode
@@ -184,6 +185,9 @@ async def test_sync(workflows_dir: Path):
     model1.control.emplace(model1.regions).mode = ControlMode.reference
     model1.control.emplace(region).mode = ControlMode.depth
     model1.control.emplace(region).mode = ControlMode.reference
+    model1.layers.create("prompt reference", Image.create(Extent(64, 64)), Bounds(0, 0, 64, 64))
+    model1.regions.positive_edit = "Use <layer:prompt reference:0.7>"
+    assert len(model1.control.all) == 4
 
     # Create sync and let it flush (it saves immediately on construction and on demand)
     sync1 = ModelSync(model1)
@@ -219,8 +223,15 @@ async def test_sync(workflows_dir: Path):
     assert model2.upscale.upscaler == model1.upscale.upscaler
     assert model2.upscale.strength == pytest.approx(model1.upscale.strength)
     assert model2.upscale.use_diffusion == model1.upscale.use_diffusion
-    assert len(model2.control.all) == 3
-    common, regional, edit = model2.control.all
+    assert len(model2.control.all) == 4
+    common, regional, edit, prompt_reference = model2.control.all
+    assert prompt_reference.prompt_kind is PromptKind.edit
+    assert prompt_reference.layer.name == "prompt reference"
+    assert prompt_reference.strength == 35
+    model2.regions.positive_edit = "Use <layer:prompt reference:0.5>"
+    assert prompt_reference.strength == 25
+    model2.regions.positive_edit = ""
+    assert model2.control.all == [common, regional, edit]
     assert common.region is None
     assert regional.region is None
     regional.mode = ControlMode.reference

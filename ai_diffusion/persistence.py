@@ -159,7 +159,9 @@ class ModelSync:
         state["regions"] = [_serialize(r) for r in model.regions]
         regions = [model.regions, *model.regions]
         state["control"] = [
-            {**_serialize(c), "region": regions.index(c._region)} for c in model.control.all
+            {**_serialize(c), "region": regions.index(c._region)}
+            for c in model.control.all
+            if not c.prompt_kind
         ]
         state_str = json.dumps(state, indent=2, default=encode_json)
         state_bytes = QByteArray(state_str.encode("utf-8"))
@@ -179,14 +181,16 @@ class ModelSync:
         _deserialize(model.live, state.get("live", {}))
         _deserialize(model.animation, state.get("animation", {}))
         _deserialize_custom(model.custom, state.get("custom", {}), model.name)
-        _deserialize(model.regions, state.get("root", {}))
-        for region_state in state.get("regions", []):
-            _deserialize(model.regions.emplace(), region_state)
-        regions = [model.regions, *model.regions]
+        # Restore manual controls before prompt text reconstructs its own controls.
+        region_states = state.get("regions", [])
+        regions = [model.regions, *(model.regions.emplace() for _ in region_states)]
         for control_state in state.get("control", []):
             region_index = control_state.get("region", 0)
             region = regions[region_index] if region_index < len(regions) else model.regions
             _deserialize(model.control.emplace(region), control_state)
+        _deserialize(model.regions, state.get("root", {}))
+        for region, region_state in zip(regions[1:], region_states):
+            _deserialize(region, region_state)
 
         for result in state.get("history", []):
             item = _HistoryResult.from_dict(result)

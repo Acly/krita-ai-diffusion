@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from typing import NamedTuple
 
-from .backend.api import ConditioningInput, LoraInput, RegionInput, WorkflowKind
+from .backend.api import LoraInput, WorkflowKind
 from .files import FileCollection, FileSource
 from .localization import translate as _
 from .model.jobs import JobParams
@@ -108,33 +108,33 @@ def extract_loras(prompt: str, lora_files: FileCollection):
     return prompt.strip(), loras
 
 
-def _extract_layers(prompt: str, start_index=1):
-    layer_index = start_index
-    layer_names: dict[str, int] = {}
+def _parse_layer_reference(value: str):
+    name, separator, weight = value.rpartition(":")
+    if separator:
+        try:
+            strength = float(weight)
+            if strength >= 0 and strength < float("inf"):
+                return name, strength
+        except ValueError:
+            pass
+    return value, 1.0
 
+
+def extract_layers(prompt: str):
+    layers: dict[str, float] = {}
     for match in pattern_layer.finditer(prompt):
-        name = match[1]
-        idx = layer_names.get(name)
-        if idx is None:
-            idx = layer_index
-            layer_index += 1
-        layer_names[name] = idx
-    return layer_names
-
-
-def extract_layers(cond: ConditioningInput, region: RegionInput | None = None):
-    start_index = 2 if cond.edit_reference else 1
-    start_index += sum(1 if c.mode.is_ip_adapter else 0 for c in cond.control)
-    if region is None:
-        return _extract_layers(cond.positive, start_index)
-    else:
-        start_index += sum(1 if c.mode.is_ip_adapter else 0 for c in region.control)
-        return _extract_layers(region.positive, start_index)
+        name, strength = _parse_layer_reference(match[1])
+        layers.setdefault(name, strength)
+    return layers
 
 
 def replace_layers(prompt: str, layer_mapping: dict[str, int], replacement="Picture {}"):
     def replace(match: re.Match[str]):
-        return replacement.format(layer_mapping[match[1]])
+        name, _strength = _parse_layer_reference(match[1])
+        if name not in layer_mapping:
+            raise PluginError(_("Layer not found") + f' "{name}"')
+        index = layer_mapping[name]
+        return replacement.format(index) if index > 0 else ""
 
     return pattern_layer.sub(replace, prompt).strip()
 

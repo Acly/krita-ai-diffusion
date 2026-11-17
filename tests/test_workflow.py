@@ -33,7 +33,6 @@ from ai_diffusion.image import Bounds, Extent, Image, ImageCollection, Mask
 from ai_diffusion.pose import Pose
 from ai_diffusion.settings import PerformanceSettings
 from ai_diffusion.style import Arch, Style
-from ai_diffusion.text import extract_layers
 from ai_diffusion.util import ensure
 
 from . import config
@@ -395,9 +394,8 @@ def test_prepare_prompt_layers(arch: Arch):
         RegionInput(mask, Bounds(0, 0, 10, 10), "region without layer"),
     ]
 
-    layers = extract_layers(cond)
-    for region in cond.regions:
-        layers.update(extract_layers(cond, region))
+    first_index = 2 if cond.edit_reference else 1
+    layers = {"layer1": first_index, "layer2": first_index + 1, "layer3": first_index}
     result = workflow.prepare_prompts(
         cond, style, seed=1, ref_layers=layers, arch=arch, files=files
     )

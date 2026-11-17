@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from enum import Flag
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
 
@@ -14,6 +15,7 @@ from ..backend.resources import Arch, ControlMode, ResourceKind, resource_id
 from ..image import BlendMode, Bounds, Extent, Image
 from ..layer import Layer, LayerType
 from ..localization import translate as _
+from ..text import extract_layers
 from ..util import PluginError
 from ..util import client_logger as log
 from . import jobs
@@ -24,11 +26,18 @@ if TYPE_CHECKING:
     from .region import Region, RootRegion
 
 
+class PromptKind(Flag):
+    none = 0
+    generate = 1
+    edit = 2
+
+
 class ControlLayer(QObject, ObservableProperties):
     max_preset_value = 4
     strength_multiplier = 50
     clip_vision_extent = Extent(224, 224)
 
+    prompt_kind = Property(PromptKind.none)
     mode = Property(ControlMode.reference, persist=True, setter="set_mode")
     layer_id = Property(QUuid(), persist=True)
     preset_value = Property(2, persist=True, setter="set_preset_value")
@@ -43,6 +52,7 @@ class ControlLayer(QObject, ObservableProperties):
     has_active_job = Property(False)
     error_text = Property("")
 
+    prompt_kind_changed = pyqtSignal(PromptKind)
     region_changed = pyqtSignal()
     mode_changed = pyqtSignal(ControlMode)
     layer_id_changed = pyqtSignal(QUuid)
@@ -322,6 +332,7 @@ class ControlLayerList(QObject):
         self._model.layers.removed.connect(self._remove_layer)
         model.regions.active_changed.connect(self.changed)
         model.regions.removed.connect(self._remove_region)
+        model.regions.prompts_changed.connect(self.sync_prompt_layers)
         model.edit_mode_changed.connect(self.changed)
         model.active_style_changed.connect(self.changed)
         model.workspace_changed.connect(self.changed)
@@ -338,6 +349,9 @@ class ControlLayerList(QObject):
         return [c for c in self._layers if self._is_mode_active(c) and c.region is region]
 
     def _is_mode_active(self, control: ControlLayer):
+        kind = PromptKind.edit if self._model.is_edit_prompt else PromptKind.generate
+        if control.prompt_kind and not control.prompt_kind & kind:
+            return False
         return not self._model.is_editing or control.mode.is_ip_adapter
 
     def add(self, region: Region | RootRegion | None = None):
@@ -357,10 +371,52 @@ class ControlLayerList(QObject):
             len(self._layers),
             region if region is not None else self.active_region,
         )
+        self._append(control)
+
+    def _append(self, control: ControlLayer):
         control.mode_changed.connect(self._update_last_mode)
         control.region_changed.connect(self.changed)
+        control.prompt_kind_changed.connect(self.changed)
         self._layers.append(control)
         self.added.emit(control)
+
+    def _find_reference(self, layer: Layer, region: Region):
+        refs = (c for c in self._layers if c.mode is ControlMode.reference)
+        matches = (c for c in refs if c.layer_id == layer.id and c._region is region)
+        return next(matches, None)
+
+    def sync_prompt_layers(self):
+        referenced: dict[ControlLayer, PromptKind] = {}
+        active_kind = PromptKind.edit if self._model.is_edit_prompt else PromptKind.generate
+        for region in [self._model.regions, *self._model.regions]:
+            prompts = [
+                (PromptKind.generate, region.positive_gen),
+                (PromptKind.edit, region.positive_edit),
+            ]
+            for kind, prompt in prompts:
+                for name, strength in extract_layers(prompt).items():
+                    layer = next((l for l in self._model.layers.images if l.name == name), None)
+                    if layer is None:
+                        continue
+                    control = self._find_reference(layer, region)
+                    if control is None:
+                        control = ControlLayer(
+                            self._model, ControlMode.reference, layer.id, len(self._layers), region
+                        )
+                        control.prompt_kind = kind
+                        control.use_custom_strength = True
+                        control.strength = round(strength * ControlLayer.strength_multiplier)
+                        self._append(control)
+                    if control.prompt_kind:
+                        if control not in referenced or kind is active_kind:
+                            control.strength = round(strength * ControlLayer.strength_multiplier)
+                        referenced[control] = referenced.get(control, PromptKind.none) | kind
+        for control in list(self._layers):
+            if control.prompt_kind:
+                if control in referenced:
+                    control.prompt_kind = referenced[control]
+                else:
+                    self.remove(control)
 
     def emplace(self, region: Region | RootRegion | None = None):
         self.add(region)
@@ -378,11 +434,23 @@ class ControlLayerList(QObject):
         bounds: Bounds | None = None,
         time: int | None = None,
         region: Region | None = None,
+        start_index=1,
     ):
         controls = self.for_region(region)
         for layer in (c for c in controls if not c.is_supported):
             log.warning(f"Trying to use control layer {layer.mode.name}: {layer.error_text}")
-        return [c.to_api(bounds, time) for c in controls if c.is_supported and c.strength > 0]
+        result: list[ControlInput] = []
+        mapping = {c.layer.name: 0 for c in controls if c.mode.is_ip_adapter}
+        reference_index = start_index
+        for control in controls:
+            if control.is_supported and control.strength > 0:
+                result.append(control.to_api(bounds, time))
+                if control.mode.is_ip_adapter:
+                    name = control.layer.name
+                    if mapping[name] == 0:
+                        mapping[name] = reference_index
+                    reference_index += 1
+        return result, mapping
 
     def _update_last_mode(self, mode: ControlMode):
         self._last_mode = mode

@@ -58,8 +58,8 @@ from ..settings import (
     settings,
 )
 from ..style import Arch, Style, Styles
-from ..text import create_ai_generated_xmp, create_img_metadata, extract_layers
-from ..util import PluginError, clamp, ensure, is_one, trim_text, unique
+from ..text import create_ai_generated_xmp, create_img_metadata
+from ..util import clamp, ensure, is_one, trim_text, unique
 from ..util import client_logger as log
 from .connection import Connection, ConnectionState
 from .control import ControlLayer, ControlLayerList
@@ -301,16 +301,13 @@ class DocumentModel(QObject, ObservableProperties):
                 inpaint_mode = InpaintMode.add_object
 
         if not dryrun:
-            conditioning, job_regions = process_regions(regions, bounds, region_layer)
+            conditioning, job_regions, ref_layers = process_regions(regions, bounds, region_layer)
             conditioning.language = self.prompt_translation_language
         else:
-            conditioning, job_regions = ConditioningInput("", ""), []
+            conditioning, job_regions, ref_layers = ConditioningInput("", ""), [], {}
 
         seed = self.seed if self.fixed_seed else workflow.generate_seed()
-        ref_layers: dict[str, int] | None = None
-        if not dryrun:
-            conditioning, ref_layers = self._add_reference_layers(conditioning)
-
+        conditioning.edit_reference = self.is_editing
         original_conditioning = conditioning
         inpaint_instruction = inpaint_mode if is_one(strength) else None
         conditioning, loras, prompt_meta = workflow.prepare_prompts(
@@ -430,7 +427,9 @@ class DocumentModel(QObject, ObservableProperties):
             sys_prompt = "Enhance image quality. Preserve original content."
 
         if params.use_prompt and not dryrun:
-            conditioning, job_regions = process_regions(self.regions, bounds, min_coverage=0)
+            conditioning, job_regions, _ref_layers = process_regions(
+                self.regions, bounds, min_coverage=0
+            )
             conditioning.language = self.prompt_translation_language
             for region in job_regions:
                 region.bounds = Bounds.scale(region.bounds, params.factor)
@@ -530,9 +529,9 @@ class DocumentModel(QObject, ObservableProperties):
         if mask is not None or workflow_kind is WorkflowKind.refine:
             image = self._get_current_image(bounds, exclude_internal=False)
 
-        conditioning, job_regions = process_regions(regions, bounds)
+        conditioning, job_regions, ref_layers = process_regions(regions, bounds)
         conditioning.language = self.prompt_translation_language
-        conditioning, ref_layers = self._add_reference_layers(conditioning)
+        conditioning.edit_reference = self.is_editing
         conditioning, loras, _ = workflow.prepare_prompts(
             conditioning,
             self.active_style,
@@ -1019,27 +1018,6 @@ class DocumentModel(QObject, ObservableProperties):
             return InpaintMode.fill
         return self.inpaint.mode
 
-    def _add_reference_layers(self, cond: ConditioningInput):
-        def add_refs(control: list[ControlInput], layer_names: dict[str, int]):
-            layers_sorted = sorted(layer_names.items(), key=lambda x: x[1])
-            for layer_name, __ in layers_sorted:
-                uid = next((l.id for l in self._doc.layers.images if l.name == layer_name), None)
-                if uid is None:
-                    raise PluginError(_("Layer not found") + f' "{layer_name}"')
-                ctrl = ControlLayer(self, ControlMode.reference, uid, 0, self.regions)
-                control.append(ctrl.to_api())
-
-        cond.edit_reference = self.is_editing
-        layers = extract_layers(cond)
-        add_refs(cond.control, layers)
-
-        for region in cond.regions:
-            region_layers = extract_layers(cond, region)
-            add_refs(region.control, region_layers)
-            layers.update(region_layers)
-
-        return cond, layers
-
     def _performance_settings(self, client: Client):
         result = client.performance_settings
         if not is_one(self.resolution_multiplier):
@@ -1457,9 +1435,11 @@ class AnimationWorkspace(QObject, ObservableProperties):
             kind = WorkflowKind.refine
         bounds = Bounds(0, 0, *m.document.extent)
         is_live = self.sampling_quality is SamplingQuality.fast
-        conditioning, _ = process_regions(m.regions, bounds, self._model.layers.root, time=time)
+        conditioning, _, ref_layers = process_regions(
+            m.regions, bounds, self._model.layers.root, time=time
+        )
         conditioning.language = m.prompt_translation_language
-        conditioning, ref_layers = m._add_reference_layers(conditioning)
+        conditioning.edit_reference = m.is_editing
         conditioning, loras, _prompt_meta = workflow.prepare_prompts(
             conditioning, m.active_style, seed, m.arch, None, ref_layers, m.loras, is_live=is_live
         )
