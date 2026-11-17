@@ -123,7 +123,6 @@ class Server:
 
         gpu_backends = [
             ServerBackend.cuda,
-            ServerBackend.directml,
             ServerBackend.xpu,
             ServerBackend.rocm,
         ]
@@ -176,8 +175,6 @@ class Server:
     async def _install(self, cb: InternalCB):
         self.state = ServerState.installing
         cb("Installing", f"Installation started in {self.path}")
-        if self.backend is ServerBackend.directml:
-            raise RuntimeError("DirectML is obsolete and can no longer be installed.")
 
         network = QNetworkAccessManager()
         self._cache_dir = self.path / ".cache"
@@ -451,8 +448,6 @@ class Server:
             env = {}
             if self.backend is ServerBackend.cpu:
                 args.append("--cpu")
-            elif self.backend is ServerBackend.directml:
-                args.append("--directml")
             if settings.server_arguments:
                 args += settings.server_arguments.split(" ")
             if port is not None:

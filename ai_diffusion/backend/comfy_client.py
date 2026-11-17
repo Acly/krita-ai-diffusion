@@ -228,13 +228,6 @@ class ComfyClient(Client):
         loras = nodes.options("LoraLoader", "lora_name")
         available_resources.update(_find_loras(loras))
 
-        # Workarounds for DirectML
-        if self.device_info.type == "privateuseone":
-            # OmniSR causes a crash
-            for n in [2, 3, 4]:
-                id = resource_id(ResourceKind.upscaler, Arch.all, UpscalerName.fast_x(n))
-                available_resources[id] = models.default_upscaler
-
     async def discover_models(self, refresh: bool):
         if refresh:
             nodes = ComfyObjectInfo(await self._get("object_info"))

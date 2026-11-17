@@ -10,7 +10,7 @@ from typing import Any, ClassVar, NamedTuple
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from .localization import translate as _
-from .platform_tools import is_macos, is_windows
+from .platform_tools import is_macos
 from .util import client_logger as log
 from .util import encode_json, read_json_with_comments, user_data_dir
 
@@ -26,7 +26,6 @@ class ServerBackend(Enum):
     cpu = (_("Run on CPU"), True)
     cuda = (_("Use CUDA (NVIDIA GPU)"), not is_macos)
     mps = (_("Use MPS (Metal Performance Shader)"), is_macos)
-    directml = (_("Use DirectML (GPU)"), is_windows)
     xpu = (_("Use XPU (Intel GPU)"), not is_macos)
     rocm = (_("Use ROCm (AMD GPU)"), not is_macos)
 
