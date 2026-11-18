@@ -151,10 +151,12 @@ class CheckpointResolution(NamedTuple):
     def compute(extent: Extent, arch: Arch, style: Style | None = None, inpaint=False):
         arch = Arch.sdxl if arch.is_sdxl_like else arch
         if style is None or style.preferred_resolution == 0:
+            no_limit = 32768  # for all practical purposes (?)
             res = {
                 Arch.sd15: (512, 768, 512**2, 512 * 768),
                 Arch.sdxl: (640, 1280, 800**2, 1024**2),
                 Arch.sd3: (512, 1536, 512**2, 1536**2),
+                Arch.krea2: (256, no_limit, 512**2, no_limit**2),
             }
             default = (256, 2048, 512**2, 2048**2)
             if inpaint:

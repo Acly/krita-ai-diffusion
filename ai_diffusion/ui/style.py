@@ -254,7 +254,7 @@ class StylePresets(SettingsTab):
         self._clip_skip_check.toggled.connect(self._toggle_clip_skip)
 
         self._resolution_spin = self._style_widgets["preferred_resolution"] = SpinBoxSetting(
-            StyleSettings.preferred_resolution, self, 0, 2048, step=8
+            StyleSettings.preferred_resolution, self, 0, 8192, step=8
         )
         self._resolution_spin.value_changed.connect(self.write)
         self._layout.addWidget(self._resolution_spin)
