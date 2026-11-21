@@ -163,6 +163,8 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
                 clip = w.load_clip(te["ministral"], type="flux2")
             case Arch.krea2:
                 clip = w.load_clip(te["qwen_3vl_4b"], type="krea2")
+            case Arch.fibo2:
+                clip = w.load_clip(te["qwen_3vl_4b"], type="fibo2")
             case Arch.qwen2:
                 clip = w.load_clip(te["qwen_3vl_8b"], type="qwen_image")
             case _:
@@ -528,9 +530,13 @@ def encode_prompt(
     regions: Output | None,
     image: Output | None = None,
     tiled_vae: bool = False,
+    width: int = 0,
+    height: int = 0,
 ):
     """Runs text and image encoder (VLM) to produce embeddings from prompt and reference images.
     Returns positive/negative conditioning, and sometimes the VAE-encoded `image` for reuse.
+    `width`/`height` are the diffusion extent the result is sampled at, used by models
+    which crop their single reference image to the output size (Fibo 2.0).
     """
     arch = clip.arch
     ref_images = [image] if cond.edit_reference and image is not None else []
@@ -542,6 +548,13 @@ def encode_prompt(
             negative = cond.negative.prepare(w) if cond.negative else ""
             prompt = w.text_encode_qwen2(clip.model, vae, ref_images, positive, negative)
             return prompt, None  # note: latent returned by this node is always noise/empty
+        elif arch is Arch.fibo2:
+            positive = cond.positive.prepare(w, cond.style_prompt)
+            negative = cond.negative.prepare(w) if cond.negative else ""
+            prompt = w.text_encode_fibo2(
+                clip.model, vae, ref_images, positive, negative, width, height
+            )
+            return prompt, None  # note: latent returned by this node is always empty
         else:
             positive = cond.positive.encode(w, clip, cond.style_prompt, ref_images)
             negative = cond.negative.encode(w, clip) if cond.negative else positive
@@ -851,7 +864,17 @@ def scale_refine_and_decode(
     upscale = w.scale_image(upscale, extent.desired)
     params = _sampler_params(sampling, extent.desired, strength=0.4)
 
-    prompt, new_latent = encode_prompt(w, cond, clip, vae, regions, upscale, tiled_vae)
+    prompt, new_latent = encode_prompt(
+        w,
+        cond,
+        clip,
+        vae,
+        regions,
+        upscale,
+        tiled_vae,
+        width=extent.desired.width,
+        height=extent.desired.height,
+    )
     new_latent = new_latent or vae_encode(w, vae, upscale, tiled_vae)
     model, prompt = apply_control(w, model, prompt, cond.all_control, extent.desired, vae, models)
     result = w.sampler_custom_advanced(model, prompt, new_latent, arch, **params)
@@ -887,7 +910,17 @@ def generate(
     model, regions = apply_attention_mask(w, model, cond, clip, extent.initial)
     model = apply_regional_ip_adapter(w, model, cond.regions, extent.initial, models)
     latent = w.empty_latent_image(extent.initial, models.arch, misc.batch_count)
-    prompt, _ = encode_prompt(w, cond, clip, vae, regions, None, checkpoint.tiled_vae)
+    prompt, _ = encode_prompt(
+        w,
+        cond,
+        clip,
+        vae,
+        regions,
+        None,
+        checkpoint.tiled_vae,
+        width=extent.initial.width,
+        height=extent.initial.height,
+    )
     model, prompt = apply_control(w, model, prompt, cond.all_control, extent.initial, vae, models)
     sample_params = _sampler_params(sampling, extent.initial)
     out_latent = w.sampler_custom_advanced(model, prompt, latent, models.arch, **sample_params)
@@ -965,7 +998,7 @@ def detect_inpaint(
         case InpaintMode.fill | InpaintMode.expand, Arch.flux2_4b, True:
             result.fill = FillMode.green
             result.use_inpaint_model = True
-        case InpaintMode.fill | InpaintMode.expand, Arch.qwen2, True:
+        case InpaintMode.fill | InpaintMode.expand, Arch.qwen2 | Arch.fibo2, True:
             result.fill = FillMode.green
         case _, _, True:
             result.fill = FillMode.none
@@ -1065,7 +1098,17 @@ def inpaint(
 
     model = apply_ip_adapter(w, model, cond_base.control, models)
     model = apply_regional_ip_adapter(w, model, cond_base.regions, extent.initial, models)
-    prompt, latent = encode_prompt(w, cond_base, clip, vae, regions, in_image, checkpoint.tiled_vae)
+    prompt, latent = encode_prompt(
+        w,
+        cond_base,
+        clip,
+        vae,
+        regions,
+        in_image,
+        checkpoint.tiled_vae,
+        width=extent.initial.width,
+        height=extent.initial.height,
+    )
     model, prompt = apply_control(
         w, model, prompt, cond_base.all_control, extent.initial, vae, models
     )
@@ -1116,7 +1159,15 @@ def inpaint(
 
         model, regions = apply_attention_mask(w, model, cond_upscale, clip, shape)
         model = apply_regional_ip_adapter(w, model, cond_upscale.regions, shape, models)
-        prompt_up, _ = encode_prompt(w, cond_upscale, clip, vae, regions)
+        prompt_up, _ = encode_prompt(
+            w,
+            cond_upscale,
+            clip,
+            vae,
+            regions,
+            width=upscale_extent.desired.width,
+            height=upscale_extent.desired.height,
+        )
 
         if params.use_inpaint_model and models.control.find(ControlMode.inpaint) is not None:
             hires_image = ImageOutput(images.hires_image)
@@ -1168,7 +1219,17 @@ def refine(
     model = apply_regional_ip_adapter(w, model, cond.regions, extent.initial, models)
     in_image = w.load_image(image, alpha=models.arch.supports_alpha)
     in_image = scale_to_initial(extent, w, in_image, models)
-    prompt, latent = encode_prompt(w, cond, clip, vae, regions, in_image, checkpoint.tiled_vae)
+    prompt, latent = encode_prompt(
+        w,
+        cond,
+        clip,
+        vae,
+        regions,
+        in_image,
+        checkpoint.tiled_vae,
+        width=extent.initial.width,
+        height=extent.initial.height,
+    )
     latent = latent or vae_encode(w, vae, in_image, checkpoint.tiled_vae)
     latent_batch = w.batch_latent(latent, misc.batch_count)
     latent_batch = setup_latent_layers(w, latent_batch, extent.desired, misc.layer_count)
@@ -1208,7 +1269,17 @@ def refine_region(
     in_mask = apply_grow_feather(w, in_mask, inpaint)
     initial_mask = scale_to_initial(extent, w, in_mask, models, is_mask=True)
 
-    prompt, latent = encode_prompt(w, cond, clip, vae, regions, in_image, checkpoint.tiled_vae)
+    prompt, latent = encode_prompt(
+        w,
+        cond,
+        clip,
+        vae,
+        regions,
+        in_image,
+        checkpoint.tiled_vae,
+        width=extent.initial.width,
+        height=extent.initial.height,
+    )
 
     if inpaint.use_inpaint_model and models.control.find(ControlMode.inpaint) is not None:
         cond.control.append(inpaint_control(in_image, initial_mask, models.arch))
@@ -1388,7 +1459,17 @@ def upscale_tiled(
         tile_cond.regions = [r for r in regions if r is not None]
         tile_model, regions = apply_attention_mask(w, model, tile_cond, clip)
         tile_model = apply_regional_ip_adapter(w, tile_model, tile_cond.regions, no_reshape, models)
-        prompt, latent = encode_prompt(w, tile_cond, clip, vae, regions, tile_image, tiled_vae)
+        prompt, latent = encode_prompt(
+            w,
+            tile_cond,
+            clip,
+            vae,
+            regions,
+            tile_image,
+            tiled_vae,
+            width=bounds.extent.width,
+            height=bounds.extent.height,
+        )
 
         control = [tiled_control(c, i) for c in tile_cond.all_control]
         tile_model, prompt = apply_control(w, tile_model, prompt, control, no_reshape, vae, models)
@@ -1519,6 +1600,7 @@ _layer_replace = {
     Arch.flux2_9b: "image {}",
     Arch.qwen_e_p: "Picture {}",
     Arch.qwen2: "<image{}>",
+    Arch.fibo2: "<image_{}>",
 }
 _control_instructions = {
     ControlMode.style: "Apply the style from {}.",
@@ -1537,7 +1619,7 @@ def build_instructions(cond: ConditioningInput, arch: Arch, inpaint: InpaintMode
 
     if not cond.edit_reference and arch.supports_edit:
         match inpaint, arch:
-            case InpaintMode.fill | InpaintMode.expand, Arch.flux2_4b | Arch.qwen2:
+            case InpaintMode.fill | InpaintMode.expand, Arch.flux2_4b | Arch.qwen2 | Arch.fibo2:
                 instructions += "Fill the green spaces according to the image.\n"
             case InpaintMode.expand, Arch.flux2_9b:
                 instructions += "Expand the image to fill the empty canvas.\n"

@@ -28,7 +28,7 @@ from ai_diffusion.backend.comfy_client import ComfyClient
 from ai_diffusion.backend.comfy_workflow import ComfyWorkflow
 from ai_diffusion.backend.resources import ControlMode, ResourceKind, resource_id
 from ai_diffusion.backend.workflow import detect_inpaint
-from ai_diffusion.files import File, FileCollection, FileLibrary, FileSource
+from ai_diffusion.files import File, FileCollection, FileFormat, FileLibrary, FileSource
 from ai_diffusion.image import Bounds, Extent, Image, ImageCollection, Mask
 from ai_diffusion.pose import Pose
 from ai_diffusion.settings import PerformanceSettings
@@ -113,6 +113,10 @@ def default_style(client: Client, arch=Arch.sd15):
         style.sampler = "Flux 2 - Euler"
         style.cfg_scale = 1.0
         style.sampler_steps = 5
+    if arch is Arch.fibo2:
+        style.sampler = "Fibo 2 - Euler Simple"
+        style.cfg_scale = 1.0
+        style.sampler_steps = 4
     if arch is Arch.anima:
         style.sampler = "Flux - Euler simple"
         style.cfg_scale = 3.5
@@ -263,6 +267,101 @@ def test_anima_lllite_control_workflow():
     assert not any(n["class_type"] == "ControlNetLoader" for n in w.root.values())
 
 
+def _fibo2_node(w: ComfyWorkflow, type: str):
+    nodes = [n for n in w.root.values() if n["class_type"] == type]
+    assert len(nodes) == 1, f"Expected exactly one {type} node, found {len(nodes)}"
+    return nodes[0]
+
+
+def _fibo2_models(checkpoint: str):
+    models = ClientModels()
+    models.checkpoints = {checkpoint: CheckpointInfo(checkpoint, Arch.fibo2, FileFormat.diffusion)}
+    models.resources = {
+        resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3vl_4b"): (
+            "qwen3vl_4b_int8_convrot.safetensors"
+        ),
+        resource_id(ResourceKind.vae, Arch.fibo2, "default"): "flux2-vae.safetensors",
+    }
+    return models
+
+
+def _create_fibo2_workflow(
+    kind: WorkflowKind,
+    cfg: float = 1.0,
+    steps: int = 4,
+    canvas: Image | Extent | None = None,
+    cond: ConditioningInput | None = None,
+    edit_reference: bool = False,
+):
+    checkpoint = default_checkpoint[Arch.fibo2]
+    models = _fibo2_models(checkpoint)
+    style = Style(Path("default.json"))
+    style.checkpoints = [checkpoint]
+    style.sampler = "Fibo 2 - Euler Simple"
+    style.sampler_steps = steps
+    style.cfg_scale = cfg
+    cond = cond or ConditioningInput("restore the photo")
+    cond.edit_reference = edit_reference
+    prepared = workflow.prepare_prompts(cond, style, default_seed, Arch.fibo2, files=files)
+    i = workflow.prepare(
+        kind,
+        canvas if canvas is not None else Extent(1024, 1024),
+        prepared.conditioning,
+        style,
+        default_seed,
+        models,
+        files,
+        default_perf,
+        loras=prepared.loras,
+    )
+    return workflow.create(i, models)
+
+
+def test_fibo2_workflow():
+    w = _create_fibo2_workflow(WorkflowKind.generate)
+    assert _fibo2_node(w, "UNETLoader")["inputs"]["unet_name"] == default_checkpoint[Arch.fibo2]
+    assert (
+        _fibo2_node(w, "CLIPLoader")["inputs"]["clip_name"] == "qwen3vl_4b_int8_convrot.safetensors"
+    )
+    assert _fibo2_node(w, "CLIPLoader")["inputs"]["type"] == "fibo2"
+    assert _fibo2_node(w, "VAELoader")["inputs"]["vae_name"] == "flux2-vae.safetensors"
+    assert _fibo2_node(w, "EmptyFlux2LatentImage")["inputs"]["width"] == 1024
+
+    te = _fibo2_node(w, "TextEncodeFibo2")["inputs"]
+    assert te["prompt"].startswith("restore the photo")
+    assert te["negative_prompt"] == ""
+    assert te["width"] == 1024 and te["height"] == 1024
+    assert "images" not in te and "images.image_1" not in te  # plain t2i has no references
+
+    assert _fibo2_node(w, "BasicGuider") is not None
+    assert _fibo2_node(w, "KSamplerSelect")["inputs"]["sampler_name"] == "euler"
+    assert _fibo2_node(w, "BasicScheduler")["inputs"]["scheduler"] == "simple"
+    forbidden = ("ReferenceLatent", "FluxGuidance", "ModelSampling", "CFGGuider")
+    assert not any(n["class_type"].startswith(forbidden) for n in w.root.values())
+
+
+def test_fibo2_edit_workflow():
+    w = _create_fibo2_workflow(
+        WorkflowKind.refine,
+        canvas=Image.create(Extent(1024, 1024)),
+        edit_reference=True,
+    )
+    te = _fibo2_node(w, "TextEncodeFibo2")["inputs"]
+    assert isinstance(te["images.image_1"], list), "canvas image must feed image_1"
+    assert isinstance(te["vae"], list), "vae is required to make reference latents"
+    assert "images.image_2" not in te
+    assert te["width"] == 1024 and te["height"] == 1024
+    # edit references travel inside the conditioning from the text encoder node
+    forbidden = ("ReferenceLatent", "FluxGuidance", "ModelSampling")
+    assert not any(n["class_type"].startswith(forbidden) for n in w.root.values())
+
+
+def test_fibo2_dev_workflow():
+    w = _create_fibo2_workflow(WorkflowKind.generate, cfg=5.0, steps=50)
+    assert _fibo2_node(w, "CFGGuider")["inputs"]["cfg"] == pytest.approx(5.0)
+    assert _fibo2_node(w, "BasicScheduler")["inputs"]["steps"] == 50
+
+
 def test_prepare_lora():
     models = ClientModels()
     models.checkpoints = {"CP": CheckpointInfo("CP", Arch.sd15)}
@@ -366,14 +465,14 @@ def test_prepare_wildcards():
     assert result.metadata["regions"][1].get("prompt_eval") is None
 
 
-@pytest.mark.parametrize("arch", [Arch.sd15, Arch.qwen_e_p])
+@pytest.mark.parametrize("arch", [Arch.sd15, Arch.qwen_e_p, Arch.fibo2])
 def test_prepare_prompt_layers(arch: Arch):
     files = FileLibrary(FileCollection(), FileCollection())
     mask = Mask.rectangle(Bounds(0, 0, 10, 10), Bounds(0, 0, 10, 10)).to_image()
     style = Style(Path("default.json"))
     style.checkpoints = []
     cond = ConditioningInput("prompt <layer:layer1> for <layer:layer2>")
-    cond.edit_reference = arch is Arch.qwen_e_p
+    cond.edit_reference = arch in (Arch.qwen_e_p, Arch.fibo2)
     cond.regions = [
         RegionInput(mask, Bounds(0, 0, 10, 10), "region <layer:layer3>"),
         RegionInput(mask, Bounds(0, 0, 10, 10), "region without layer"),
@@ -392,11 +491,10 @@ def test_prepare_prompt_layers(arch: Arch):
         assert result.conditioning.positive == "prompt  for"
         assert result.metadata["prompt_final"] == f"prompt  for, {style.style_prompt}"
     else:
-        assert result.conditioning.positive == "prompt Picture 2 for Picture 3"
-        assert (
-            result.metadata["prompt_final"]
-            == f"prompt Picture 2 for Picture 3, {style.style_prompt}"
-        )
+        format = "<image_{}>" if arch is Arch.fibo2 else "Picture {}"
+        expected = f"prompt {format.format(2)} for {format.format(3)}"
+        assert result.conditioning.positive == expected
+        assert result.metadata["prompt_final"] == f"{expected}, {style.style_prompt}"
 
 
 def test_prepare_prompt_instructions():
@@ -416,7 +514,7 @@ def test_prepare_prompt_instructions():
     assert result.conditioning.positive == expected_prompt
 
 
-@pytest.mark.parametrize("arch", [Arch.sdxl, Arch.flux2_4b, Arch.flux2_9b])
+@pytest.mark.parametrize("arch", [Arch.sdxl, Arch.flux2_4b, Arch.flux2_9b, Arch.qwen2, Arch.fibo2])
 def test_prepare_prompt_inpaint(arch):
     files = FileLibrary(FileCollection(), FileCollection())
     style = Style(Path("default.json"))
@@ -431,6 +529,8 @@ def test_prepare_prompt_inpaint(arch):
             expected_prompt = "Remove the object.\n\ninpaint prompt"
         case Arch.flux2_9b:
             expected_prompt = "Expand the image to fill the empty canvas.\n\ninpaint prompt"
+        case Arch.qwen2 | Arch.fibo2:
+            expected_prompt = "Fill the green spaces according to the image.\n\ninpaint prompt"
         case _:
             expected_prompt = "inpaint prompt"
     assert result.conditioning.positive == expected_prompt
@@ -993,7 +1093,7 @@ def test_refine_live(qtapp, client, sdver):
     run_and_save(qtapp, client, job, f"test_refine_live_{sdver.name}")
 
 
-@pytest.mark.parametrize("arch", [Arch.flux_k, Arch.flux2_4b])
+@pytest.mark.parametrize("arch", [Arch.flux_k, Arch.flux2_4b, Arch.fibo2])
 def test_edit(qtapp, client, arch):
     if isinstance(client, CloudClient) and arch is Arch.flux_k:
         pytest.skip("Flux Kontext not supported on Cloud")
@@ -1005,7 +1105,7 @@ def test_edit(qtapp, client, arch):
     run_and_save(qtapp, client, job, f"test_edit_{arch.name}")
 
 
-@pytest.mark.parametrize("arch", [Arch.flux_k, Arch.flux2_4b])
+@pytest.mark.parametrize("arch", [Arch.flux_k, Arch.flux2_4b, Arch.fibo2])
 def test_edit_selection(qtapp, client, arch):
     if isinstance(client, CloudClient) and arch is Arch.flux_k:
         pytest.skip("Flux Kontext not supported on Cloud")

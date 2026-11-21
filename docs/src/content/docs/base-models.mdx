@@ -19,6 +19,7 @@ The plugin supports:
 * [Flux 1](#flux-1)
 * [Flux 2](#flux-2)
 * [Z-Image](#z-image)
+* [Fibo 2.0](#fibo-20)
 
 The following base models have limited support:
 * <ExternalLink href="https://github.com/Acly/krita-ai-diffusion/discussions/1176">Chroma</ExternalLink>
@@ -115,6 +116,33 @@ photographic content. It can produce a much wider variety of styles, but
 images are less consistent and generation time is much slower. You can
 [download it manually](https://huggingface.co/Comfy-Org/z_image/blob/main/split_files/diffusion_models/z_image_bf16.safetensors)
 if you want to experiment.
+
+### Fibo 2.0
+
+Fibo 2.0 is Bria's unified model for image editing and text-to-image. Editing
+is instruction-based like Flux 2 Klein: document layers and control layers can
+be passed as reference images (up to 4) and are addressed as `<image_1>`,
+`<image_2>`, ... in the prompt - the first reference is the image being edited.
+It was trained on long structured (VGL) JSON captions and understands them
+directly, but plain text prompts work as well.
+
+Two checkpoints are available from
+[Comfy-Org/Fibo-2.0](https://huggingface.co/Comfy-Org/Fibo-2.0) (manual
+download into the server's model folders, no installer workload yet):
+
+* **Edit Turbo** - distilled for few-step editing: 4 steps at CFG 1.0 (default
+  style)
+* **Dev** - full quality base model: 50 steps at CFG 5.0, also the base for
+  fine-tuning
+
+Both use the euler sampler with simple scheduler; the required timestep shift
+is built into the model. Fibo 2.0 requires the Flux 2 VAE and the Qwen3-VL-4B
+text encoder (same files as Krea 2). Only bf16 and int8-convrot variants exist
+(no fp8); the int8 quants run on 8 GB GPUs.
+
+<Aside type="caution">
+Fibo 2.0 weights are licensed CC BY-NC 4.0 - non-commercial use only.
+</Aside>
 
 ## Installation
 
