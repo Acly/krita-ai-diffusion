@@ -26,6 +26,7 @@ from PyQt6.QtGui import (
     QPalette,
 )
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
     QCheckBox,
     QComboBox,
     QFrame,
@@ -70,12 +71,17 @@ from .widget import (
 )
 
 
-class HistoryWidget(QListWidget):
+class HistoryListWidget(QListWidget):
+    """List of generated images. With `accepted_only` it shows only results which were
+    applied to the document (marked with a star), without prompt headers."""
+
     _model: DocumentModel
     _connections: list[QMetaObject.Connection]
     _last_job_params: JobParams | None = None
+    _accepted_only: bool
 
     item_activated = pyqtSignal(QListWidgetItem)
+    count_changed = pyqtSignal()
 
     _thumb_size = 96
     _applied_icon = Image.load(theme.icon_path / "star.png")
@@ -94,10 +100,11 @@ class HistoryWidget(QListWidget):
         }}
     """
 
-    def __init__(self, parent: QWidget | None):
+    def __init__(self, parent: QWidget | None, accepted_only=False):
         super().__init__(parent)
         self._model = root.active_model
         self._connections = []
+        self._accepted_only = accepted_only
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setResizeMode(QListView.ResizeMode.Adjust)
@@ -154,11 +161,15 @@ class HistoryWidget(QListWidget):
     def add(self, job: Job):
         if not self.is_finished(job):
             return  # Only finished diffusion/animation jobs have images to show
+        if self._accepted_only and not job.is_used:
+            return
 
         scrollbar = self.verticalScrollBar()
         scroll_to_bottom = scrollbar and scrollbar.value() >= scrollbar.maximum() - 4
 
-        if not JobParams.equal_ignore_seed(self._last_job_params, job.params):
+        if not self._accepted_only and not JobParams.equal_ignore_seed(
+            self._last_job_params, job.params
+        ):
             self._last_job_params = job.params
             prompt = job.params.name if job.params.name != "" else "<no prompt>"
             strength = job.params.metadata.get("strength", 1.0)
@@ -174,12 +185,14 @@ class HistoryWidget(QListWidget):
 
         if job.kind is JobKind.diffusion:
             if job.params.is_layered:
-                self._add_item(job, QListWidgetItem(self._image_thumbnail(job, 0), None))
+                if self._should_show(job, 0):
+                    self._add_item(job, QListWidgetItem(self._image_thumbnail(job, 0), None))
             else:
                 for i, img in enumerate(job.results):
-                    self._add_item(job, QListWidgetItem(self._image_thumbnail(job, i), None), i)
+                    if self._should_show(job, i):
+                        self._add_item(job, QListWidgetItem(self._image_thumbnail(job, i), None), i)
 
-        if job.kind is JobKind.animation:
+        if job.kind is JobKind.animation and self._should_show(job, 0):
             item = AnimatedListItem([
                 self._image_thumbnail(job, i) for i in range(len(job.results))
             ])
@@ -187,6 +200,10 @@ class HistoryWidget(QListWidget):
 
         if scroll_to_bottom:
             self.scrollToBottom()
+        self.count_changed.emit()
+
+    def _should_show(self, job: Job, index: int):
+        return not self._accepted_only or job.result_was_used(index)
 
     def _add_item(self, job: Job, item: QListWidgetItem, index=0):
         item.setData(Qt.ItemDataRole.UserRole, job.id)
@@ -284,6 +301,7 @@ class HistoryWidget(QListWidget):
             next_item = self.item(i + 1)
             if item and item.text() != "" and next_item and next_item.text() != "":
                 self.takeItem(i)
+        self.count_changed.emit()
 
     def update_selection(self):
         current = [self._item_data(i) for i in self.selectedItems()]
@@ -336,8 +354,13 @@ class HistoryWidget(QListWidget):
             self._context_button.setVisible(False)
 
     def update_image_thumbnail(self, id: JobQueue.Item):
-        if item := self._find(id):
-            job = ensure(self._model.jobs.find(id.job))
+        job = self._model.jobs.find(id.job)
+        if job is None:
+            return
+        item = self._find(id)
+        if self._accepted_only and (item is None) == job.result_was_used(id.image):
+            self.rebuild()  # accepted mark was added or removed: item appears/disappears
+        elif item is not None:
             item.setIcon(self._image_thumbnail(job, id.image))
 
     def select_item(self):
@@ -355,10 +378,14 @@ class HistoryWidget(QListWidget):
         return job.kind in [JobKind.diffusion, JobKind.animation] and job.state is JobState.finished
 
     def rebuild(self):
-        self.clear()
-        for job in filter(self.is_finished, self._model.jobs):
-            self.add(job)
+        with theme.SignalBlocker(self):
+            self.clear()
+            self._last_job_params = None
+            for job in filter(self.is_finished, self._model.jobs):
+                self.add(job)
         self.scrollToBottom()
+        self.update_selection()
+        self.count_changed.emit()
 
     def item_info(self, item: QListWidgetItem) -> tuple[str, int]:  # job id, image index
         return item.data(Qt.ItemDataRole.UserRole), item.data(Qt.ItemDataRole.UserRole + 1)
@@ -441,6 +468,13 @@ class HistoryWidget(QListWidget):
             menu.addAction(_("Copy Seed"), self._copy_seed)
             menu.addAction(_("Info to Clipboard"), self._info_to_clipboard)
             menu.addSeparator()
+            if job is not None:
+                index = self.item_info(item)[1]
+                if job.result_was_used(index):
+                    menu.addAction(_("Unmark Accepted"), self._unmark_accepted)
+                else:
+                    menu.addAction(_("Mark as Accepted"), self._mark_accepted)
+                menu.addSeparator()
             save_action = ensure(menu.addAction(_("Save Image"), self._save_image))
             if self._model.document.filename == "":
                 tt = _(
@@ -508,10 +542,36 @@ class HistoryWidget(QListWidget):
             job_id, image_index = self.item_info(item)
             self._model.save_result(job_id, image_index)
 
+    def _mark_accepted(self):
+        self._set_accepted(True)
+
+    def _unmark_accepted(self):
+        self._set_accepted(False)
+
+    def _set_accepted(self, accepted: bool):
+        for job_id, index in [self.item_info(item) for item in self.selectedItems()]:
+            if accepted:
+                self._model.jobs.notify_used(job_id, index)
+            else:
+                self._model.jobs.notify_unused(job_id, index)
+
+    def _is_accepted(self, item: QListWidgetItem):
+        job_id, index = self.item_info(item)
+        job = self._model.jobs.find(job_id)
+        return job is not None and job.result_was_used(index)
+
     def _discard_image(self, confirm=True):
         confirm = confirm and settings.confirm_discard_image
         reply = QMessageBox.StandardButton.Yes
-        if confirm:
+        if any(self._is_accepted(item) for item in self.selectedItems()):
+            reply = QMessageBox.warning(
+                self,
+                _("Discard Image"),
+                _("The selection contains accepted (starred) images. Discard them anyway?"),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+        elif confirm:
             reply = QMessageBox.warning(
                 self,
                 _("Discard Image"),
@@ -529,17 +589,111 @@ class HistoryWidget(QListWidget):
                 self.setCurrentRow(next_item, QItemSelectionModel.SelectionFlag.Current)
 
     def _clear_all(self):
-        reply = QMessageBox.warning(
-            self,
+        box = QMessageBox(
+            QMessageBox.Icon.Warning,
             _("Clear History"),
             _("Are you sure you want to discard all generated images?"),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
+            self,
         )
-        if reply == QMessageBox.StandardButton.Yes:
-            self._model.jobs.clear()
-            self.clear()
+        box.setDefaultButton(QMessageBox.StandardButton.No)
+        discard_accepted = QCheckBox(_("Also discard accepted (starred) images"), box)
+        box.setCheckBox(discard_accepted)
+        if box.exec() == QMessageBox.StandardButton.Yes:
+            self._model.jobs.clear(keep_used=not discard_accepted.isChecked())
+            self.rebuild()
             self._model.hide_preview(delete_layer=True)
+
+
+class HistoryWidget(QWidget):
+    """History of generated images: a pinned "Accepted" section with the results which were
+    applied to the document (starred) on top, followed by the full chronological history."""
+
+    item_activated = pyqtSignal(QListWidgetItem)
+
+    _max_accepted_rows = 2
+
+    def __init__(self, parent: QWidget | None):
+        super().__init__(parent)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+        self._accepted_header = QToolButton(self)
+        self._accepted_header.setCheckable(True)
+        self._accepted_header.setChecked(False)  # collapsed by default
+        self._accepted_header.setAutoRaise(True)
+        self._accepted_header.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._accepted_header.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._accepted_header.setToolTip(
+            _("Results which were applied to the document (marked with a star).")
+            + "\n"
+            + _("They are kept in the history permanently. Click to collapse or expand.")
+        )
+        self._accepted_header.toggled.connect(self._update_accepted_section)
+
+        self._accepted = HistoryListWidget(self, accepted_only=True)
+        self._accepted.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self._accepted.item_activated.connect(self.item_activated)
+        self._accepted.count_changed.connect(self._update_accepted_section)
+
+        self._accepted_divider = QFrame(self)
+        self._accepted_divider.setFrameShape(QFrame.Shape.HLine)
+        self._accepted_divider.setFrameShadow(QFrame.Shadow.Sunken)
+        self._accepted_divider.setLineWidth(1)
+        self._accepted_divider.setContentsMargins(0, 3, 0, 3)
+
+        self._history = HistoryListWidget(self)
+        self._history.item_activated.connect(self.item_activated)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self._accepted_header)
+        layout.addWidget(self._accepted)
+        layout.addWidget(self._accepted_divider)
+        layout.addWidget(self._history, 1)
+        self._update_accepted_section()
+
+    @property
+    def model_(self):
+        return self._history.model_
+
+    @model_.setter
+    def model_(self, model: DocumentModel):
+        self._accepted.model_ = model
+        self._history.model_ = model
+
+    def item_info(self, item: QListWidgetItem) -> tuple[str, int]:  # job id, image index
+        return self._history.item_info(item)
+
+    def _update_accepted_section(self):
+        count = self._accepted.count()
+        expanded = self._accepted_header.isChecked()
+        self._accepted_header.setText("\u2605 " + _("Accepted") + f" ({count})")
+        self._accepted_header.setArrowType(
+            Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow
+        )
+        self._accepted_header.setVisible(count > 0)
+        self._accepted.setVisible(count > 0 and expanded)
+        self._accepted_divider.setVisible(count > 0 and expanded)
+        if count > 0 and expanded:
+            QTimer.singleShot(0, self._update_accepted_height)
+
+    def _update_accepted_height(self):
+        count = self._accepted.count()
+        if count == 0 or not self._accepted.isVisible():
+            return
+        first = self._accepted.visualItemRect(self._accepted.item(0))
+        last = self._accepted.visualItemRect(self._accepted.item(count - 1))
+        scroll = self._accepted.verticalScrollBar()
+        offset = scroll.value() if scroll else 0
+        content_height = last.bottom() + offset + 2
+        max_height = self._max_accepted_rows * (first.height() + 2) + 2
+        self._accepted.setFixedHeight(max(min(content_height, max_height), first.height() + 2))
+
+    def resizeEvent(self, a0):
+        super().resizeEvent(a0)
+        if self._accepted.isVisible():
+            QTimer.singleShot(0, self._update_accepted_height)
 
 
 class AnimatedListItem(QListWidgetItem):
