@@ -381,15 +381,15 @@ class LayerManager(QObject):
             return
         if self._is_updating:
             return
-        root_node = self._doc.rootNode()
-        if root_node is None:
-            return  # Document has been closed
-
-        active = self._doc.activeNode()
-        if active is None:
-            return
-
         with self._update_guard():
+            root_node = self._doc.rootNode()
+            if root_node is None:
+                return  # Document has been closed
+
+            active = self._doc.activeNode()  # may also handle pending Qt events!
+            if active is None:
+                return
+
             removals = set(self._layers.keys())
             changes = False
             for n in traverse_layers(root_node):
