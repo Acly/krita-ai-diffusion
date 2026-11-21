@@ -21,7 +21,8 @@ pytest
 pytest-asyncio
 psutil
 tqdm
-PyQt6
+# PyQt6 6.12.1 ships broken type stubs
+PyQt6!=6.12.1
 Pillow
 
 # Service
