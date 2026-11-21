@@ -115,6 +115,17 @@ def _sampler_params(sampling: SamplingInput, extent: Extent, strength: float | N
     return params
 
 
+def _fix_qwen21_turbo(checkpoint: CheckpointInput, sampling: SamplingInput):
+    if checkpoint.version is not Arch.qwen2 or "turbo" not in checkpoint.checkpoint.lower():
+        return
+    sampling.sampler = "euler"
+    sampling.scheduler = "qwen21_turbo"
+    if sampling.total_steps != 8:  # scale partial denoise onto the fixed 8-step schedule
+        ratio = sampling.start_step / max(1, sampling.total_steps)
+        sampling.start_step = min(7, round(8 * ratio))
+        sampling.total_steps = 8
+
+
 def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, models: ClientModels):
     arch = checkpoint.version
     model_info = models.checkpoints.get(checkpoint.checkpoint)
@@ -1782,6 +1793,9 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
     workflow = ComfyWorkflow(models.node_inputs, comfy_mode)
     layer_count = i.images.layer_count if i.images else 1
     misc = MiscParams(i.batch_count, layer_count, i.color_match, i.nsfw_filter)
+
+    if i.models is not None and i.sampling is not None:
+        _fix_qwen21_turbo(i.models, i.sampling)
 
     if i.kind is WorkflowKind.generate:
         return generate(

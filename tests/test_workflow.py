@@ -8,6 +8,7 @@ import pytest
 
 from ai_diffusion.backend import workflow
 from ai_diffusion.backend.api import (
+    CheckpointInput,
     ConditioningInput,
     ControlInput,
     CustomWorkflowInput,
@@ -117,6 +118,10 @@ def default_style(client: Client, arch=Arch.sd15):
         style.sampler = "Flux - Euler simple"
         style.cfg_scale = 3.5
         style.sampler_steps = 20
+    if arch is Arch.qwen2:
+        style.sampler = "Qwen Image 2.1 Turbo - Euler"
+        style.cfg_scale = 1.0
+        style.sampler_steps = 8
     return style
 
 
@@ -261,6 +266,42 @@ def test_anima_lllite_control_workflow():
     assert w.root[str(model.node - 1)]["inputs"]["weights"] == "anima-lllite-anytest.safetensors"
     assert any(n["class_type"] == "ETN_control_load" for n in w.root.values())
     assert not any(n["class_type"] == "ControlNetLoader" for n in w.root.values())
+
+
+def test_qwen21_turbo_sampling():
+    w = ComfyWorkflow()
+    model = w.load_diffusion_model("qwen_image_2.1_turbo_int8_convrot.safetensors")
+    w.scheduler_sigmas(model, "qwen21_turbo", 8, Arch.qwen2)
+
+    manual = [n for n in w.root.values() if n["class_type"] == "ManualSigmas"]
+    assert len(manual) == 1
+    assert manual[0]["inputs"]["sigmas"] == (
+        "1.0, 0.978453, 0.95418, 0.926626, 0.89508, 0.845148, 0.704534, 0.414568, 0"
+    )
+    assert not any(n["class_type"] == "BasicScheduler" for n in w.root.values())
+
+
+def test_qwen21_turbo_sampler_override():
+    turbo = CheckpointInput("qwen_image_2.1_turbo_int8_convrot.safetensors", Arch.qwen2)
+    sampling = SamplingInput("dpmpp_2m", "karras", 5.5, 20, 10, 42)
+    workflow._fix_qwen21_turbo(turbo, sampling)
+    assert sampling.sampler == "euler"
+    assert sampling.scheduler == "qwen21_turbo"
+    assert sampling.total_steps == 8
+    assert sampling.start_step == 4
+
+    base = CheckpointInput("qwen_image_2.1_int8_convrot.safetensors", Arch.qwen2)
+    unchanged = SamplingInput("dpmpp_2m", "karras", 5.5, 20, 10, 42)
+    workflow._fix_qwen21_turbo(base, unchanged)
+    assert unchanged.sampler == "dpmpp_2m"
+    assert unchanged.scheduler == "karras"
+    assert unchanged.total_steps == 20
+
+    zimage = CheckpointInput("z_image_turbo_fp8_e4m3fn.safetensors", Arch.zimage)
+    other = SamplingInput("euler_ancestral", "sgm_uniform", 1.0, 8, 0, 7)
+    workflow._fix_qwen21_turbo(zimage, other)
+    assert other.sampler == "euler_ancestral"
+    assert other.scheduler == "sgm_uniform"
 
 
 def test_prepare_lora():
@@ -442,6 +483,22 @@ def test_generate(qtapp, client, extent: Extent):
     prompt = ConditioningInput("ship")
     job = create(WorkflowKind.generate, client, canvas=extent, cond=prompt)
     result = run_and_save(qtapp, client, job, f"test_generate_{extent.width}x{extent.height}")
+    assert result.extent == extent
+
+
+def test_generate_qwen21_turbo(qtapp, client):
+    if isinstance(client, CloudClient):
+        pytest.skip("Qwen Image 2.1 is not available on Cloud")
+    extent = Extent(1024, 1024)
+    prompt = ConditioningInput("ship")
+    job = create(
+        WorkflowKind.generate,
+        client,
+        canvas=extent,
+        cond=prompt,
+        style=default_style(client, Arch.qwen2),
+    )
+    result = run_and_save(qtapp, client, job, "test_generate_qwen21_turbo")
     assert result.extent == extent
 
 

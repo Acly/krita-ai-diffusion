@@ -109,5 +109,12 @@
         "steps": 20,
         "minimum_steps": 3,
         "cfg": 5.0
+    },
+    "Qwen Image 2.1 Turbo - Euler": {
+        "sampler": "euler",
+        "scheduler": "qwen21_turbo",
+        "steps": 8,
+        "minimum_steps": 4,
+        "cfg": 1.0
     }
 }
