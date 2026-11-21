@@ -189,6 +189,7 @@ class ComfyClient(Client):
             translation=True,
             languages=await _list_languages(self),
             gguf="UnetLoaderGGUF" in nodes,
+            text_generate="TextGenerate" in nodes and "PreviewAny" in nodes,
         )
 
         # Check for required and optional model resources
@@ -352,6 +353,7 @@ class ComfyClient(Client):
         images = ImageCollection()
         last_images = ImageCollection()
         result = None
+        has_text = False
 
         async for msg in websocket:
             if isinstance(msg, bytes):
@@ -372,6 +374,7 @@ class ComfyClient(Client):
                         progress = Progress(self._active_job)
                         images = ImageCollection()
                         result = None
+                        has_text = False
 
                 if msg["type"] == "execution_interrupted":
                     if job := await self._get_active_job(msg["data"]["prompt_id"]):
@@ -381,6 +384,9 @@ class ComfyClient(Client):
                 if msg["type"] == "executing" and msg["data"]["node"] is None:
                     job_id = msg["data"]["prompt_id"]
                     if self._clear_job(job_id):
+                        if len(images) == 0 and has_text:
+                            await self._report(ClientEvent.finished, job_id, 1)
+                            continue
                         if len(images) == 0:
                             # It may happen if the entire execution is cached and no images are sent.
                             images = last_images
@@ -409,6 +415,7 @@ class ComfyClient(Client):
                         images.append(await self._transfer_result_images(msg))
                         text_output = _extract_text_output(job.id, msg)
                         if text_output is not None:
+                            has_text = True
                             await self._messages.put(text_output)
                         job_info = _extract_job_info_output(job.id, msg)
                         if job_info is not None:

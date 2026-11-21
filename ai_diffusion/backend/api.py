@@ -20,6 +20,7 @@ class WorkflowKind(Enum):
     upscale_tiled = 5
     control_image = 6
     custom = 7
+    analyze_image = 8
 
 
 @dataclass
@@ -199,6 +200,7 @@ class WorkflowInput:
     color_match: float = 0.0
     nsfw_filter: float = 0.0
     custom_workflow: CustomWorkflowInput | None = None
+    text_prompt: str = ""
 
     @property
     def extent(self):
@@ -247,7 +249,7 @@ class WorkflowInput:
 
     @property
     def cost(self):
-        if self.kind is WorkflowKind.control_image:
+        if self.kind in (WorkflowKind.control_image, WorkflowKind.analyze_image):
             return 1
         if self.kind is WorkflowKind.upscale_simple:
             return 2

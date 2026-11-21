@@ -52,6 +52,7 @@ from .server import ServerWidget
 from .settings_widgets import (
     ComboBoxSetting,
     FileListSetting,
+    LineEditSetting,
     SettingsTab,
     SliderSetting,
     SpinBoxSetting,
@@ -690,6 +691,7 @@ class DiffusionSettings(SettingsTab):
         nsfw_settings = [(_("Disabled"), 0.0), (_("Basic"), 0.65), (_("Strict"), 0.8)]
         self._widgets["nsfw_filter"].set_items(nsfw_settings)
         DiffusionSettings._warning_shown = self._warning_shown or settings.nsfw_filter > 0
+        self.add("analyze_image_prompt", LineEditSetting(S._analyze_image_prompt, self))
 
         self._layout.addStretch()
 

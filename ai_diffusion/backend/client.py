@@ -387,6 +387,7 @@ class ClientFeatures:
     max_upload_size: int = 0
     max_control_layers: int = 1000
     gguf: bool = False
+    text_generate: bool = False
 
 
 class Client(ABC):

@@ -39,6 +39,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QSizePolicy,
     QToolButton,
+    QToolTip,
     QVBoxLayout,
     QWidget,
 )
@@ -767,8 +768,12 @@ class GenerationWidget(QWidget):
         strength_layout = QHBoxLayout()
         strength_layout.addWidget(self.strength_slider.widget())
         strength_layout.addWidget(self.layer_count_widget)
+        self.analyze_button = create_wide_tool_button(
+            "image-analyze", _("Analyze Image (copy description to clipboard)"), self
+        )
         strength_layout.addWidget(self.add_control_button)
         strength_layout.addWidget(self.add_region_button)
+        strength_layout.addWidget(self.analyze_button)
         layout.addLayout(strength_layout)
 
         self.custom_inpaint = CustomInpaintWidget(self)
@@ -820,6 +825,7 @@ class GenerationWidget(QWidget):
         self.history.item_activated.connect(self.apply_result)
         layout.addWidget(self.history)
 
+        root.connection.models_changed.connect(self.update_generate_options)
         self.update_generate_options()
 
     @property
@@ -848,6 +854,8 @@ class GenerationWidget(QWidget):
                 model.edit_mode_changed.connect(self.update_generate_options),
                 self.add_control_button.clicked.connect(self.add_control),
                 self.add_region_button.clicked.connect(self.add_region),
+                self.analyze_button.clicked.connect(model.analyze_image),
+                model.image_analyzed.connect(self.copy_image_description),
                 self.region_prompt.activated.connect(model.generate),
                 self.generate_button.clicked.connect(model.generate),
                 self.generate_button.ctrl_clicked.connect(model.generate_replace),
@@ -990,6 +998,12 @@ class GenerationWidget(QWidget):
     def add_control(self):
         self.model.active_regions.add_control()
 
+    def copy_image_description(self, text: str):
+        if clipboard := QGuiApplication.clipboard():
+            clipboard.setText(text)
+            pos = self.analyze_button.mapToGlobal(self.analyze_button.rect().bottomLeft())
+            QToolTip.showText(pos, _("Image description copied to clipboard"), self.analyze_button)
+
     def update_generate_options(self):
         if not self.model.has_document:
             return
@@ -997,6 +1011,7 @@ class GenerationWidget(QWidget):
         arch = self.model.arch
         self.strength_slider.setVisible(arch is not Arch.qwen_l)
         self.layer_count_widget.setVisible(arch is Arch.qwen_l)
+        self.analyze_button.setVisible(self.model.can_analyze_image)
 
         regions = self.model.active_regions
         self.region_prompt.regions = regions

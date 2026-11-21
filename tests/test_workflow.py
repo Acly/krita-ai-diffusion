@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from PyQt6.QtCore import QByteArray
 
 from ai_diffusion.backend import workflow
 from ai_diffusion.backend.api import (
@@ -22,7 +23,13 @@ from ai_diffusion.backend.api import (
     WorkflowInput,
     WorkflowKind,
 )
-from ai_diffusion.backend.client import CheckpointInfo, Client, ClientEvent, ClientModels
+from ai_diffusion.backend.client import (
+    CheckpointInfo,
+    Client,
+    ClientEvent,
+    ClientModels,
+    TextOutput,
+)
 from ai_diffusion.backend.cloud_client import CloudClient
 from ai_diffusion.backend.comfy_client import ComfyClient
 from ai_diffusion.backend.comfy_workflow import ComfyWorkflow
@@ -849,6 +856,84 @@ def test_create_control_image(qtapp, client: Client, mode):
         threshold = 0.015 if mode is ControlMode.pose else 0.005
         assert Image.compare(result, reference) < threshold
         # cloud results are a bit different, maybe due to compression of input?
+
+
+def test_analyze_image_workflow():
+    models = ClientModels()
+    te_id = resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3vl_8b")
+    models.resources[te_id] = "qwen3vl_8b.safetensors"
+
+    image = Image.create(Extent(2048, 1536))
+    job = workflow.prepare_analyze_image(image, Arch.qwen2, "Describe the image")
+    assert job.image.extent.pixel_count <= 1024 * 1024
+    assert job.image.extent.width / job.image.extent.height == pytest.approx(2048 / 1536, 0.01)
+
+    w = workflow.create(job, models)
+    nodes = {n["class_type"]: n["inputs"] for n in w.root.values()}
+    assert "CheckpointLoaderSimple" not in nodes and "UNETLoader" not in nodes
+    assert nodes["CLIPLoader"]["clip_name"] == "qwen3vl_8b.safetensors"
+    assert nodes["TextGenerate"]["prompt"] == "Describe the image"
+    assert nodes["TextGenerate"]["sampling_mode"] == "on"
+    assert nodes["TextGenerate"]["thinking"] is True
+    assert nodes["TextGenerate"]["sampling_mode.seed"] == ensure(job.sampling).seed
+    assert "PreviewAny" in nodes
+
+
+def test_analyze_image_mask():
+    models = ClientModels()
+    te_id = resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3vl_8b")
+    models.resources[te_id] = "qwen3vl_8b.safetensors"
+    image = Image.create(Extent(4, 4), 0xFF000000)
+
+    opaque = Mask(Bounds(8, 8, 4, 4), QByteArray(b"\xff" * 16))
+    job = workflow.prepare_analyze_image(image, Arch.qwen2, "Describe", opaque)
+    assert job.text_prompt == "Describe" and ensure(job.images).hires_mask is None
+    nodes = [n["class_type"] for n in workflow.create(job, models).root.values()]
+    assert "ImageCompositeMasked" not in nodes
+
+    lasso = Mask(Bounds(8, 8, 4, 4), QByteArray(b"\x00" + b"\xff" * 15))
+    job = workflow.prepare_analyze_image(image, Arch.qwen2, "Describe", lasso)
+    assert job.text_prompt.startswith("Describe ") and "borders" in job.text_prompt
+    hires_mask = ensure(ensure(job.images).hires_mask)
+    assert hires_mask.extent == Extent(4, 4)
+    assert hires_mask.pixel(0, 0) == 0 and hires_mask.pixel(1, 1) == 255
+
+    w = workflow.create(job, models)
+    nodes = {n["class_type"]: n["inputs"] for n in w.root.values()}
+    assert nodes["EmptyImage"]["color"] == 0xFFFFFF
+    composite = nodes["ImageCompositeMasked"]
+    assert w.root[composite["destination"][0]]["class_type"] == "EmptyImage"
+    text_image = nodes["TextGenerate"]["image"]
+    assert w.root[text_image[0]]["class_type"] == "ImageCompositeMasked"
+
+
+@pytest.mark.parametrize("arch", [Arch.qwen2, Arch.krea2])
+def test_analyze_image(qtapp, local_client: Client, arch: Arch):
+    te = local_client.models.for_arch(arch).text_encoder
+    if not local_client.features.text_generate or not te.find(arch.text_encoders[0]):
+        pytest.skip(f"No vision-language text encoder for {arch.value} available")
+
+    image = Image.load(image_dir / "cat.webp")
+    job = workflow.prepare_analyze_image(image, arch, "Describe the image in one sentence.")
+    dump_workflow(job, f"test_analyze_image_{arch.name}", local_client)
+
+    async def main():
+        job_id, text = None, None
+        async for msg in local_client.listen():
+            if not job_id:
+                job_id = await local_client.enqueue(job)
+            if msg.job_id != job_id:
+                continue
+            if msg.event is ClientEvent.output and isinstance(msg.result, TextOutput):
+                text = msg.result.text
+            if msg.event is ClientEvent.finished:
+                return text
+            if msg.event is ClientEvent.error:
+                raise RuntimeError(msg.error)
+
+    text = qtapp.run(main())
+    assert isinstance(text, str) and "cat" in text.lower()
+    assert not text.lower().startswith("assistant")
 
 
 def test_create_open_pose_vector(qtapp, client: Client):
