@@ -152,7 +152,7 @@ class KritaDocument(Document):
             if doc.activeNode() is None:
                 return None
             all_docs = acquire_elements(Krita.instance().documents())
-            if doc not in all_docs or not doc.activeNode():
+            if doc not in all_docs:
                 return None  # document not fully initialized yet
             id = cls._id_from_annotation(doc)
             for other in all_docs:
@@ -293,10 +293,9 @@ class KritaDocument(Document):
 
     @property
     def is_valid(self):
-        # can be a document that has been closed, or one that hasn't finished initializing
-        return self._doc.activeNode() is not None and self._doc in acquire_elements(
-            Krita.instance().documents()
-        )
+        # Check if  document that has been closed. Don't check activeNode() here,
+        # it pumps Qt events and may interrupt actions when called frequently.
+        return self._doc in acquire_elements(Krita.instance().documents())
 
     @property
     def is_active(self):
