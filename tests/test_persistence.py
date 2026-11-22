@@ -3,13 +3,16 @@ document annotations and the plugin's settings.json file."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 from krita import Document as MockKritaDocument
 from krita import Krita
+from PyQt6.QtCore import QByteArray
 
 from ai_diffusion.backend.api import FillMode, InpaintMode
+from ai_diffusion.backend.resources import ControlMode
 from ai_diffusion.document import KritaDocument
 from ai_diffusion.image import Bounds, Extent, Image, ImageCollection
 from ai_diffusion.model.connection import Connection
@@ -18,7 +21,7 @@ from ai_diffusion.model.jobs import Job, JobKind, JobParams, JobState
 from ai_diffusion.model.model import DocumentModel, InpaintContext, QueueMode
 from ai_diffusion.persistence import ModelSync, RecentlyUsedSync
 from ai_diffusion.settings import Settings
-from ai_diffusion.style import Style
+from ai_diffusion.style import Style, Styles
 
 from .conftest import qtapp
 
@@ -32,6 +35,20 @@ def workflows_dir(tmp_path: Path) -> Path:
     folder = tmp_path / "workflows"
     folder.mkdir()
     return folder
+
+
+@pytest.fixture()
+def root_connection():
+    from ai_diffusion.model.root import root as plugin_root
+
+    connection = Connection()
+    previous = getattr(plugin_root, "_connection", None)
+    plugin_root._connection = connection
+    yield connection
+    if previous is None:
+        del plugin_root._connection
+    else:
+        plugin_root._connection = previous
 
 
 def _make_model(krita_doc: MockKritaDocument, workflows_dir: Path) -> DocumentModel:
@@ -228,3 +245,81 @@ async def test_history(workflows_dir: Path):
     # Pixel values should be close to the originals (allow for WebP compression rounding)
     assert Image.compare(restored_a, img_a) < 0.02
     assert Image.compare(restored_b, img_b) < 0.02
+
+
+# ---------------------------------------------------------------------------
+# test_control_layer_custom_strength
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("key_order", ["declaration", "alphabetical"])
+@qtapp
+async def test_control_layer_custom_strength(
+    workflows_dir: Path, root_connection: Connection, key_order: str
+):
+    """Custom strength & range of control layers must survive save/load (#2621), also for
+    documents stored by older versions which wrote properties in alphabetical order."""
+
+    krita_doc = Krita.instance().openDocument("test")
+    model1 = _make_model(krita_doc, workflows_dir)
+    region = model1.regions.emplace()
+    for control in (model1.regions.control.emplace(), region.control.emplace()):
+        control.mode = ControlMode.pose
+        control.preset_value = 3
+        control.use_custom_strength = True
+        control.strength = 20
+        control.start = 0.1
+        control.end = 0.5
+    ModelSync(model1)._save()
+
+    if key_order == "alphabetical":
+        state_bytes = model1.document.find_annotation("ui.json")
+        assert state_bytes is not None
+        state = json.loads(state_bytes.data().decode("utf-8"))
+        state["control"] = [dict(sorted(c.items())) for c in state["control"]]
+        for r in state["regions"]:
+            r["control"] = [dict(sorted(c.items())) for c in r["control"]]
+        model1.document.annotate("ui.json", QByteArray(json.dumps(state).encode("utf-8")))
+
+    Krita.instance().setActiveDocument(krita_doc)
+    doc2 = KritaDocument(krita_doc, None)
+    model2 = DocumentModel(
+        doc2, root_connection, WorkflowCollection(root_connection, folder=workflows_dir)
+    )
+    _sync2 = ModelSync(model2)
+
+    region2 = next(iter(model2.regions))
+    for control in (model2.regions.control[0], region2.control[0]):
+        assert control.mode is ControlMode.pose
+        assert control.preset_value == 3
+        assert control.use_custom_strength
+        assert control.strength == 20
+        assert control.start == pytest.approx(0.1)
+        assert control.end == pytest.approx(0.5)
+
+
+# ---------------------------------------------------------------------------
+# test_edit_mode
+# ---------------------------------------------------------------------------
+
+
+@qtapp
+async def test_edit_mode(workflows_dir: Path):
+    """Saved edit_mode is restored as saved, also when the style can't edit (e.g. not connected)."""
+
+    krita_doc = Krita.instance().openDocument("test")
+    model1 = _make_model(krita_doc, workflows_dir)
+    style = Styles.list().find("built-in/flux-kontext.json")
+    assert style is not None and style is not model1.style
+    model1.style = style
+    model1.edit_mode = True
+    ModelSync(model1)._save()
+
+    Krita.instance().setActiveDocument(krita_doc)
+    doc2 = KritaDocument(krita_doc, None)
+    conn2 = Connection()
+    model2 = DocumentModel(doc2, conn2, WorkflowCollection(conn2, folder=workflows_dir))
+    _sync2 = ModelSync(model2)
+
+    assert model2.style is style
+    assert model2.edit_mode is True

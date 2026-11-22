@@ -169,6 +169,11 @@ def is_persistent(obj: QObject, name: str):
     return False
 
 
+def _persistent_properties(obj: QObject):
+    # Declaration order: setters may have side effects which depend on other properties
+    return [name for name in obj.__class__.__dict__ if is_persistent(obj, name)]
+
+
 def _default_serializer(value):
     return value
 
@@ -186,12 +191,13 @@ def serialize(obj: QObject, converter=_default_serializer):
             return value.toString()
         return converter(value)
 
-    return {name: _serialize(name) for name in dir(obj.__class__) if is_persistent(obj, name)}
+    return {name: _serialize(name) for name in _persistent_properties(obj)}
 
 
 def deserialize(obj: QObject, data: dict[str, Any], converter=_default_deserializer):
-    for name, value in data.items():
-        if is_persistent(obj, name):
+    for name in _persistent_properties(obj):
+        if name in data:
+            value = data[name]
             current = getattr(obj, name, None)
             if isinstance(current, Enum):
                 value = current.__class__(value)
