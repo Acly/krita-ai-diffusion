@@ -1574,6 +1574,7 @@ def prepare_prompts(
     is_live=False,
 ):
     cond = copy(cond)
+    cond.control = [copy(c) for c in cond.control]
     files = files or FileLibrary.instance()
 
     cond.regions = [copy(r) for r in cond.regions]

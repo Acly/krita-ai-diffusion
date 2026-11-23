@@ -416,6 +416,24 @@ def test_prepare_prompt_instructions():
     assert result.conditioning.positive == expected_prompt
 
 
+def test_prepare_prompt_instructions_repeatable():
+    """Prompt preparation must not modify the caller's conditioning input. Batch generation
+    re-runs it for every job with the same input, so a mutation would drop the instructions
+    from all jobs after the first one."""
+    files = FileLibrary(FileCollection(), FileCollection())
+    style = Style(Path("default.json"))
+    style.checkpoints = []
+    cond = ConditioningInput("base prompt")
+    cond.control = [ControlInput(ControlMode.depth, Image.create(Extent(4, 4)))]
+
+    first = workflow.prepare_prompts(cond, style, seed=1, arch=Arch.flux2_4b, files=files)
+    assert [c.mode for c in cond.control] == [ControlMode.depth]
+
+    second = workflow.prepare_prompts(cond, style, seed=1, arch=Arch.flux2_4b, files=files)
+    assert second.conditioning is not None
+    assert second.conditioning.positive == first.conditioning.positive  # type: ignore[union-attr]
+
+
 @pytest.mark.parametrize("arch", [Arch.sdxl, Arch.flux2_4b, Arch.flux2_9b])
 def test_prepare_prompt_inpaint(arch):
     files = FileLibrary(FileCollection(), FileCollection())
