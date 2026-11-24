@@ -14,6 +14,7 @@ version = "1.54.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
 comfy_version = "e9027f2b30f37bb3052714eb08fcf479542f4fc0"
+rtx_vsr_node = "RTXVideoSuperResolution"
 
 
 class CustomNode(NamedTuple):

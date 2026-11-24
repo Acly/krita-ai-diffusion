@@ -43,7 +43,7 @@ from ..backend.client import (
 )
 from ..backend.network import NetworkError
 from ..backend.resolution import compute_bounds, compute_relative_bounds
-from ..backend.resources import ControlMode
+from ..backend.resources import ControlMode, rtx_vsr_node
 from ..document import Document, KritaDocument, SelectionModifiers
 from ..files import FileLibrary
 from ..image import BlendMode, Bounds, DummyImage, Extent, Image, Mask
@@ -416,7 +416,9 @@ class DocumentModel(QObject, ObservableProperties):
                 upscale=params.upscale,
             )
         else:
-            input = workflow.prepare_upscale_simple(image, params.upscale.model, params.factor)
+            input = workflow.prepare_upscale_simple(
+                image, params.upscale.model, params.factor, params.upscale.rtx_quality
+            )
 
         target_bounds = Bounds(0, 0, *params.target_extent)
         name = f"{target_bounds.width}x{target_bounds.height}"
@@ -1121,6 +1123,7 @@ class TileOverlapMode(Enum):
 
 class UpscaleWorkspace(QObject, ObservableProperties):
     upscaler = Property("", persist=True)
+    rtx_quality = Property("ULTRA", persist=True)
     factor = Property(2.0, persist=True, setter="_set_factor")
     use_diffusion = Property(True, persist=True)
     strength = Property(0.3, persist=True)
@@ -1131,6 +1134,7 @@ class UpscaleWorkspace(QObject, ObservableProperties):
     can_generate = Property(True)
 
     upscaler_changed = pyqtSignal(str)
+    rtx_quality_changed = pyqtSignal(str)
     factor_changed = pyqtSignal(float)
     use_diffusion_changed = pyqtSignal(bool)
     strength_changed = pyqtSignal(float)
@@ -1179,7 +1183,11 @@ class UpscaleWorkspace(QObject, ObservableProperties):
         model = ensure(self._model())
         overlap = self.tile_overlap if self.tile_overlap_mode is TileOverlapMode.custom else -1
         return UpscaleParams(
-            upscale=UpscaleInput(self.upscaler, overlap),
+            upscale=UpscaleInput(
+                self.upscaler,
+                overlap,
+                self.rtx_quality if self.upscaler == rtx_vsr_node else "ULTRA",
+            ),
             factor=self.factor,
             use_diffusion=self.use_diffusion,
             unblur_strength=self.unblur_strength,

@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from ..backend.resources import ControlMode, UpscalerName
+from ..backend.resources import ControlMode, UpscalerName, rtx_vsr_node
 from ..localization import translate as _
 from ..model.jobs import JobKind
 from ..model.model import DocumentModel, TileOverlapMode
@@ -131,6 +131,17 @@ class UpscaleWidget(QWidget):
         model_layout.addWidget(self.model_select)
         layout.addLayout(model_layout)
 
+        self.rtx_quality_label = QLabel(_("RTX Quality"), self)
+        self.rtx_quality_select = QComboBox(self)
+        for quality in ("LOW", "MEDIUM", "HIGH", "ULTRA"):
+            self.rtx_quality_select.addItem(_(quality.capitalize()), quality)
+        rtx_quality_layout = QHBoxLayout()
+        rtx_quality_layout.addWidget(self.rtx_quality_label)
+        rtx_quality_layout.addWidget(self.rtx_quality_select, 1)
+        layout.addLayout(rtx_quality_layout)
+        self.rtx_quality_label.hide()
+        self.rtx_quality_select.hide()
+
         self.factor_widget = FactorWidget(self)
         self.factor_widget.value_changed.connect(self._update_factor)
         layout.addWidget(self.factor_widget)
@@ -222,6 +233,7 @@ class UpscaleWidget(QWidget):
             self._model_bindings = [
                 bind(model, "workspace", self.workspace_select, "value", Bind.one_way),
                 bind_combo(model.upscale, "upscaler", self.model_select),
+                bind_combo(model.upscale, "rtx_quality", self.rtx_quality_select),
                 bind(model.upscale, "factor", self.factor_widget, "value"),
                 bind_toggle(model.upscale, "use_diffusion", self.refinement_checkbox),
                 bind(model, "style", self.style_select, "value"),
@@ -233,6 +245,7 @@ class UpscaleWidget(QWidget):
                 bind(model.upscale, "can_generate", self.upscale_button, "enabled", Bind.one_way),
                 bind(model, "error", self.error_box, "error", Bind.one_way),
                 model.upscale.tile_overlap_mode_changed.connect(self._update_overlap),
+                model.upscale.upscaler_changed.connect(self._update_rtx_options),
                 model.upscale.use_prompt_changed.connect(self._update_prompt),
                 model.regions.modified.connect(self._update_prompt),
                 model.regions.added.connect(self._update_prompt),
@@ -245,6 +258,7 @@ class UpscaleWidget(QWidget):
             self._update_prompt()
             self._update_style()
             self._update_overlap()
+            self._update_rtx_options()
             self.update_progress()
 
     def update_models(self):
@@ -266,10 +280,13 @@ class UpscaleWidget(QWidget):
                         self.model_select.addItem(name, file)
                     elif file in [UpscalerName.fast_2x.value, UpscalerName.fast_3x.value]:
                         pass
+                    elif file == rtx_vsr_node:
+                        self.model_select.addItem("NVIDIA RTX VSR", file)
                     else:
                         self.model_select.addItem(file, file)
                 selected = self.model_select.findData(self.model.upscale.upscaler)
                 self.model_select.setCurrentIndex(max(selected, 0))
+            self._update_rtx_options()
 
     def update_progress(self):
         self.progress_bar.setValue(int(self.model.progress * 100))
@@ -281,6 +298,11 @@ class UpscaleWidget(QWidget):
         self.overlap_input.setEnabled(
             self.model.upscale.tile_overlap_mode is TileOverlapMode.custom
         )
+
+    def _update_rtx_options(self):
+        visible = self.model.upscale.upscaler == rtx_vsr_node
+        self.rtx_quality_label.setVisible(visible)
+        self.rtx_quality_select.setVisible(visible)
 
     def _update_style(self):
         arch = self.model.arch
