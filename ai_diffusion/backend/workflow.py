@@ -61,6 +61,8 @@ def generate_seed():
     # Currently only using 32 bit because Qt widgets don't support int64
     return random.randint(0, 2**32 - 1)
 
+def iterate_seed(old_seed):
+    return (old_seed + 1) % (2**32 - 1)
 
 def sampling_from_style(style: Style, strength: float, is_live: bool):
     sampler_name = style.live_sampler if is_live else style.sampler
