@@ -498,6 +498,9 @@ class ComfyWorkflow:
     def model_sampling_sd3(self, model: Output, shift=3.0):
         return self.add("ModelSamplingSD3", 1, model=model, shift=shift)
 
+    def model_sampling_aura_flow(self, model: Output, shift=3.16):
+        return self.add("ModelSamplingAuraFlow", 1, model=model, shift=shift)
+
     def rescale_cfg(self, model: Output, multiplier=0.7):
         return self.add("RescaleCFG", 1, model=model, multiplier=multiplier)
 
@@ -714,6 +717,27 @@ class ComfyWorkflow:
         for i, image in enumerate(images):
             args[f"images.image_{i + 1}"] = image
         positive, negative, _ = self.add("TextEncodeQwenImage21", 3, **args)
+        return ConditioningOutput(positive, negative)
+
+    def text_encode_boogu(
+        self,
+        clip: Output,
+        vae: Output,
+        images: list[Output],
+        positive: str | Output,
+        negative: str | Output,
+    ):
+        assert len(images) >= 1, "Boogu edit conditioning requires at least one reference image"
+        assert len(images) <= 16, "TextEncodeBooguEdit supports a maximum of 16 reference images"
+        args: dict[str, Any] = {
+            "clip": clip,
+            "vae": vae,
+            "prompt": positive,
+            "negative_prompt": negative,
+        }
+        for i, image in enumerate(images):
+            args[f"images.image_{i + 1}"] = image
+        positive, negative = self.add("TextEncodeBooguEdit", 2, **args)
         return ConditioningOutput(positive, negative)
 
     def background_region(self, conditioning: Output):

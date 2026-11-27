@@ -28,7 +28,7 @@ from ai_diffusion.backend.comfy_client import ComfyClient
 from ai_diffusion.backend.comfy_workflow import ComfyWorkflow
 from ai_diffusion.backend.resources import ControlMode, ResourceKind, resource_id
 from ai_diffusion.backend.workflow import detect_inpaint
-from ai_diffusion.files import File, FileCollection, FileLibrary, FileSource
+from ai_diffusion.files import File, FileCollection, FileFormat, FileLibrary, FileSource
 from ai_diffusion.image import Bounds, Extent, Image, ImageCollection, Mask
 from ai_diffusion.pose import Pose
 from ai_diffusion.settings import PerformanceSettings
@@ -261,6 +261,125 @@ def test_anima_lllite_control_workflow():
     assert w.root[str(model.node - 1)]["inputs"]["weights"] == "anima-lllite-anytest.safetensors"
     assert any(n["class_type"] == "ETN_control_load" for n in w.root.values())
     assert not any(n["class_type"] == "ControlNetLoader" for n in w.root.values())
+
+
+def _boogu_models():
+    models = ClientModels()
+    models.checkpoints = {
+        "BOOGU_TURBO": CheckpointInfo(
+            "boogu_image_turbo_fp8_scaled.safetensors", Arch.boogu, FileFormat.diffusion
+        ),
+        "BOOGU_EDIT": CheckpointInfo(
+            "boogu_image_edit_fp8_scaled.safetensors", Arch.boogu, FileFormat.diffusion
+        ),
+    }
+    models.resources[resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3vl_8b")] = (
+        "qwen3vl_8b_fp8_scaled.safetensors"
+    )
+    models.resources[resource_id(ResourceKind.vae, Arch.boogu, "default")] = "ae.safetensors"
+    return models
+
+
+def test_boogu_t2i_workflow():
+    w = ComfyWorkflow()
+    models = _boogu_models()
+    model, clip, vae = workflow.load_checkpoint_with_lora(
+        w, workflow.CheckpointInput("BOOGU_TURBO", Arch.boogu), models
+    )
+    cond = workflow.Conditioning(workflow.TextPrompt("a fox", ""), workflow.TextPrompt("", ""))
+    prompt, _ = workflow.encode_prompt(w, cond, clip, vae, None)
+    latents = w.empty_latent_image(Extent(1024, 1024), Arch.boogu)
+    w.sampler_custom_advanced(
+        model,
+        prompt,
+        latents,
+        Arch.boogu,
+        sampler="lcm",
+        scheduler="sgm_uniform",
+        steps=4,
+        cfg=1.0,
+        extent=Extent(1024, 1024),
+    )
+
+    def node_id(cls):
+        return next(k for k, n in w.root.items() if n["class_type"] == cls)
+
+    nodes = list(w.root.values())
+    loaders = {n["class_type"]: n["inputs"] for n in nodes}
+    assert loaders["UNETLoader"]["unet_name"] == "boogu_image_turbo_fp8_scaled.safetensors"
+    assert loaders["CLIPLoader"]["type"] == "boogu"
+    assert loaders["VAELoader"]["vae_name"] == "ae.safetensors"
+    assert loaders["EmptyLatentImage"]["width"] == 1024
+    # like the t2i template: plain text conditioning, no references, no shift for turbo
+    assert "TextEncodeBooguEdit" not in loaders
+    assert "ModelSamplingAuraFlow" not in loaders
+    assert any(n["class_type"] == "CLIPTextEncode" for n in nodes)
+    assert loaders["BasicGuider"]  # cfg 1.0 -> no CFGGuider
+    assert "CFGGuider" not in loaders
+    assert loaders["KSamplerSelect"]["sampler_name"] == "lcm"
+    assert loaders["BasicScheduler"]["scheduler"] == "sgm_uniform"
+    assert loaders["BasicScheduler"]["model"] == [node_id("UNETLoader"), 0]
+    assert loaders["BasicGuider"]["model"] == [node_id("UNETLoader"), 0]
+
+
+def test_boogu_edit_workflow():
+    w = ComfyWorkflow()
+    models = _boogu_models()
+    model, clip, vae = workflow.load_checkpoint_with_lora(
+        w, workflow.CheckpointInput("BOOGU_EDIT", Arch.boogu), models
+    )
+    image = w.empty_image(Extent(64, 64), 0)
+    cond = workflow.Conditioning(
+        workflow.TextPrompt("remove the hat", ""),
+        workflow.TextPrompt("blurry", ""),
+        edit_reference=True,
+    )
+    prompt, _ = workflow.encode_prompt(w, cond, clip, vae, None, image)
+    latents = w.empty_latent_image(Extent(64, 64), Arch.boogu)
+    w.sampler_custom_advanced(
+        model,
+        prompt,
+        latents,
+        Arch.boogu,
+        sampler="dpmpp_2m",
+        scheduler="simple",
+        steps=25,
+        cfg=3.5,
+        extent=Extent(64, 64),
+    )
+
+    def node_id(cls):
+        return next(k for k, n in w.root.items() if n["class_type"] == cls)
+
+    loaders = {n["class_type"]: n["inputs"] for n in w.root.values()}
+    assert loaders["CLIPLoader"]["type"] == "boogu"
+    assert "ReferenceLatent" not in loaders
+
+    # like the edit template: single node provides pos+neg conditioning
+    text_encode = loaders["TextEncodeBooguEdit"]
+    assert text_encode["clip"] == [node_id("CLIPLoader"), 0]
+    assert text_encode["vae"] == [node_id("VAELoader"), 0]
+    assert text_encode["images.image_1"] == [str(image.node), image.output]
+    assert text_encode["prompt"] == "remove the hat"
+    assert text_encode["negative_prompt"] == "blurry"
+
+    # non-turbo checkpoints are sampled with the AuraFlow timestep shift
+    assert abs(loaders["ModelSamplingAuraFlow"]["shift"] - 3.16) < 1e-9
+    guider = loaders["CFGGuider"]
+    assert guider["positive"] == [node_id("TextEncodeBooguEdit"), 0]
+    assert guider["negative"] == [node_id("TextEncodeBooguEdit"), 1]
+    assert guider["model"] == [node_id("ModelSamplingAuraFlow"), 0]
+    assert loaders["BasicScheduler"]["model"] == [node_id("ModelSamplingAuraFlow"), 0]
+
+
+def test_boogu_checkpoint_detection():
+    assert Arch.from_string("boogu", filename="boogu_image_edit_fp8_scaled.safetensors") is (
+        Arch.boogu
+    )
+    assert Arch.from_string("unknown", filename="boogu_image_turbo_fp8_scaled.safetensors") is (
+        Arch.boogu
+    )
+    assert Arch.from_string("qwen-image", filename="qwen_image_2.1.safetensors") is not Arch.boogu
 
 
 def test_prepare_lora():
