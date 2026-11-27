@@ -387,6 +387,7 @@ class ClientFeatures:
     max_upload_size: int = 0
     max_control_layers: int = 1000
     gguf: bool = False
+    moss_edit: bool = False
 
 
 class Client(ABC):

@@ -120,7 +120,8 @@ class ComfyWorkflow:
             for k, v in node_inputs.items():
                 if v is not None:
                     args.setdefault(k, v)
-                elif k not in args:
+                elif k not in args and not any(name.startswith(f"{k}.") for name in args):
+                    # group inputs like autogrow lists are given as "name.item"
                     log.warning(f"Node {node_name} missing required input {k} (no default)")
         return args
 
@@ -586,7 +587,7 @@ class ComfyWorkflow:
         w, h = extent.width, extent.height
         if arch.is_flux_like or arch.is_qwen_like or arch in (Arch.sd3, Arch.chroma, Arch.zimage):
             return self.add("EmptySD3LatentImage", 1, width=w, height=h, batch_size=batch_size)
-        if arch.is_flux2 or arch is Arch.ernie:
+        if arch.is_flux2 or arch is Arch.ernie or arch is Arch.moss:
             return self.add("EmptyFlux2LatentImage", 1, width=w, height=h, batch_size=batch_size)
         else:
             return self.add("EmptyLatentImage", 1, width=w, height=h, batch_size=batch_size)
@@ -715,6 +716,32 @@ class ComfyWorkflow:
             args[f"images.image_{i + 1}"] = image
         positive, negative, _ = self.add("TextEncodeQwenImage21", 3, **args)
         return ConditioningOutput(positive, negative)
+
+    def text_encode_moss_edit(
+        self,
+        clip: Output,
+        vae: Output,
+        images: list[Output],
+        positive: str | Output,
+        negative: str | Output,
+        image_strength: float = 1.0,
+    ):
+        assert 1 <= len(images) <= 10, "MOSS-Image edit supports 1 to 10 reference images"
+
+        def encode(text: str | Output):
+            args: dict[str, Any] = {
+                "clip": clip,
+                "prompt": text,
+                "edit_format": "Moss-Image-Edit",
+                "image_strength": image_strength,
+            }
+            if vae is not None:
+                args["vae"] = vae
+            for i, image in enumerate(images):
+                args[f"images.image_{i}"] = image
+            return self.add("TextEncodeMOSSImageEdit", 1, **args)
+
+        return ConditioningOutput(encode(positive), encode(negative))
 
     def background_region(self, conditioning: Output):
         return self.add("ETN_BackgroundRegion", 1, conditioning=conditioning)

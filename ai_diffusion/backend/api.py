@@ -112,6 +112,7 @@ class ConditioningInput:
     regions: list[RegionInput] = field(default_factory=list)
     language: str = ""
     edit_reference: bool = False  # use input image as conditioning reference
+    is_editing: bool = False  # the prompt describes a change to make to the input image
 
 
 class InpaintMode(Enum):

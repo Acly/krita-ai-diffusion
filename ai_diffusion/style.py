@@ -427,6 +427,12 @@ class SamplerPresets:
             return self[legacy_map[name]]
         raise KeyError(f"Sampler preset {name} not found")
 
+    def get(self, name: str) -> SamplerPreset | None:
+        try:
+            return self[name]
+        except KeyError:
+            return None
+
     def items(self):
         return self._presets.items()
 

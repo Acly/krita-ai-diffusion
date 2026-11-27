@@ -74,4 +74,5 @@ def toggle_workspace():
 
 def toggle_edit_mode():
     if model := root.model_for_active_document():
-        model.edit_mode = not model.edit_mode
+        if model.can_toggle_edit:
+            model.edit_mode = not model.edit_mode

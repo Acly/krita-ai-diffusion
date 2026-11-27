@@ -636,6 +636,8 @@ class CustomInpaintWidget(QWidget):
         layout.addWidget(self.context_combo, 1)
         self.setLayout(layout)
 
+        root.connection.models_changed.connect(self.update_widgets_enabled)
+
     @property
     def model(self):
         return self._model
@@ -664,6 +666,7 @@ class CustomInpaintWidget(QWidget):
         self.fill_mode_combo.setEnabled(is_one(self.model.strength) and not self.model.is_editing)
         self.use_inpaint_button.setEnabled(arch.is_sdxl_like or arch.has_controlnet_inpaint)
         self.use_prompt_focus_button.setVisible(arch is Arch.sd15 or arch.is_sdxl_like)
+        self.edit_mode_switch.setVisible(self.model.can_edit)
         self.edit_mode_switch.setEnabled(self.model.can_toggle_edit)
 
     def update_context_layers(self):
@@ -879,6 +882,7 @@ class GenerationWidget(QWidget):
         action = QAction(text, self)
         action.setIcon(theme.icon(icon))
         action.setIconVisibleInMenu(True)
+        action.setProperty("is_edit_action", is_edit is True)
         action.triggered.connect(lambda: self.change_inpaint_mode(mode, is_edit))
         return action
 
@@ -960,7 +964,6 @@ class GenerationWidget(QWidget):
                 menu = self.generate_region_menu
             elif self.model.document.selection_bounds:
                 menu = self.inpaint_menu
-                menu.actions()[-2].setEnabled(self.model.can_edit)
             else:
                 menu = self.generate_menu
         else:
@@ -968,10 +971,12 @@ class GenerationWidget(QWidget):
                 menu = self.refine_region_menu
             elif self.model.document.selection_bounds:
                 menu = self.refine_selection_menu
-                menu.actions()[1].setEnabled(self.model.can_edit)
             else:
                 menu = self.refine_menu
-                menu.actions()[1].setEnabled(self.model.can_edit)
+
+        for action in menu.actions():
+            if action.property("is_edit_action"):
+                action.setVisible(self.model.can_edit)
 
         menu.setFixedWidth(width)
         menu.exec(self.generate_button.mapToGlobal(pos))

@@ -704,6 +704,17 @@
           "sha256": "880bf452b060abfcbccedee56f8d3dbf8aed2cb0311b599210361b414fc8f2fd"
         }
       ]
+    },
+    {
+      "id": "lora-edit-moss",
+      "name": "MOSS Image Edit LoRA",
+      "files": [
+        {
+          "path": "models/loras/moss_image_edit_lora_rank_64_bf16.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/loras/moss_image_edit_lora_rank_64_bf16.safetensors",
+          "sha256": "17a48b8c605dcffdedb92a2b887d18cf316505be90802717669fb6556098dcdf"
+        }
+      ]
     }
   ],
   "prefetch": [

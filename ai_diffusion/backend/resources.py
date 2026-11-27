@@ -10,10 +10,10 @@ from typing import Any, NamedTuple
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.54.0"
+version = "1.55.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "e9027f2b30f37bb3052714eb08fcf479542f4fc0"
+comfy_version = "b9b290e43f1eb379946dfeb013faf9bbefa1a618"
 
 
 class CustomNode(NamedTuple):
@@ -93,6 +93,7 @@ class Arch(Enum):
     zimage = "Z-Image"
     ernie = "ERNIE Image"
     krea2 = "Krea 2"
+    moss = "MOSS Image"
 
     auto = "Automatic"
     all = "All"
@@ -141,6 +142,8 @@ class Arch(Enum):
             return Arch.ernie
         if string == "krea2":
             return Arch.krea2
+        if string == "moss-image" or (string == "unknown" and "moss" in filename):
+            return Arch.moss
         return None
 
     @staticmethod
@@ -211,6 +214,11 @@ class Arch(Enum):
         return self.is_edit or self.is_flux2 or self is Arch.qwen2
 
     @property
+    def supports_same_model_edit(self):  # can serve edit mode with the same model
+        # requires an edit adapter LoRA, see default_names for ResourceKind.lora
+        return self is Arch.moss
+
+    @property
     def is_sdxl_like(self):
         # illustrious technically uses sdxl architecture, but has a separate ecosystem
         return self in [Arch.sdxl, Arch.illu, Arch.illu_v]
@@ -256,6 +264,8 @@ class Arch(Enum):
                 return ["ministral"]
             case Arch.krea2:
                 return ["qwen_3vl_4b"]
+            case Arch.moss:
+                return ["qwen_35_9b"]
             case _:
                 raise ValueError(f"Unsupported architecture: {self}")
 
@@ -281,6 +291,7 @@ class Arch(Enum):
             Arch.zimage,
             Arch.ernie,
             Arch.krea2,
+            Arch.moss,
         ]
 
 
@@ -805,6 +816,11 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.lora, Arch.flux, "turbo"): ["flux.1-turbo"],
     resource_id(ResourceKind.lora, Arch.flux_k, "turbo"): ["flux.1-turbo"],
     resource_id(ResourceKind.lora, Arch.anima, "turbo"): ["anima-turbo-lora"],
+    resource_id(ResourceKind.lora, Arch.moss, "edit"): [
+        "Moss-Image-Edit/adapter_model",
+        "moss-image-edit",
+        "moss_image_edit",
+    ],
     resource_id(ResourceKind.lora, Arch.sd15, ControlMode.face): ["ip-adapter-faceid-plusv2_sd15_lora", "ip-adapter-faceid-plus_sd15_lora"],
     resource_id(ResourceKind.lora, Arch.sdxl, ControlMode.face): ["ip-adapter-faceid-plusv2_sdxl_lora", "ip-adapter-faceid_sdxl_lora"],
     resource_id(ResourceKind.lora, Arch.flux, ControlMode.depth): ["flux1-depth"],
@@ -829,6 +845,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.text_encoder, Arch.all, "ministral"): ["ministral-3-3b", "ministral"],
     resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3vl_4b"): ["qwen3vl_4b", "qwen_3vl_4b", "qwen3-vl-4b"],
     resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3vl_8b"): ["qwen3vl_8b", "qwen_3vl_8b", "qwen3-vl-8b"],
+    resource_id(ResourceKind.text_encoder, Arch.all, "qwen_35_9b"): ["qwen35_9b", "qwen3.5_9b", "qwen3.5-9b", "qwen35-9b"],
     resource_id(ResourceKind.vae, Arch.sd15, "default"): ["vae-ft-mse-840000-ema"],
     resource_id(ResourceKind.vae, Arch.sdxl, "default"): ["sdxl_vae"],
     resource_id(ResourceKind.vae, Arch.illu, "default"): ["sdxl_vae"],
@@ -848,6 +865,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.vae, Arch.zimage, "default"): ["z-image", "flux-", "flux_", "flux/", "flux1", "ae.s"],
     resource_id(ResourceKind.vae, Arch.ernie, "default"): ["flux2"],
     resource_id(ResourceKind.vae, Arch.krea2, "default"): ["qwen_image"],
+    resource_id(ResourceKind.vae, Arch.moss, "default"): ["flux2"],
 }
 # fmt: on
 
@@ -887,6 +905,8 @@ required_resource_ids = {
     ResourceId(ResourceKind.vae, Arch.ernie, "default"),
     ResourceId(ResourceKind.text_encoder, Arch.krea2, "qwen_3vl_4b"),
     ResourceId(ResourceKind.vae, Arch.krea2, "default"),
+    ResourceId(ResourceKind.text_encoder, Arch.moss, "qwen_35_9b"),
+    ResourceId(ResourceKind.vae, Arch.moss, "default"),
 }
 
 recommended_resource_ids = [
@@ -908,6 +928,7 @@ recommended_resource_ids = [
     ResourceId(ResourceKind.controlnet, Arch.flux, ControlMode.inpaint),
     ResourceId(ResourceKind.controlnet, Arch.flux, ControlMode.universal),
     ResourceId(ResourceKind.lora, Arch.flux, "turbo"),
+    ResourceId(ResourceKind.lora, Arch.moss, "edit"),
     ResourceId(ResourceKind.model_patch, Arch.zimage, ControlMode.universal),
     ResourceId(ResourceKind.model_patch, Arch.zimage, ControlMode.blur),
 ]

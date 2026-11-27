@@ -109,5 +109,12 @@
         "steps": 20,
         "minimum_steps": 3,
         "cfg": 5.0
+    },
+    "MOSS - ER SDE Simple": {
+        "sampler": "er_sde",
+        "scheduler": "simple",
+        "steps": 25,
+        "minimum_steps": 4,
+        "cfg": 2.5
     }
 }
