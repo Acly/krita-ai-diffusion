@@ -666,6 +666,28 @@ class ComfyWorkflow:
         )
         return ConditioningOutput(pos, neg), model
 
+    def reference_multi_latent(
+        self,
+        positive: Output,
+        negative: Output,
+        vae: Output,
+        images: list[Output],
+        megapixels=1.0,
+    ):
+        """ReferenceMultiLatent: encodes reference images (image0 = <ref_image_0>) and appends
+        their latents to positive and negative conditioning - the official Flux 3 edit recipe."""
+        assert 1 <= len(images) <= 10, "Expected 1 to 10 reference images"
+        args: dict[str, Any] = {
+            "positive": positive,
+            "negative": negative,
+            "vae": vae,
+            "resolution": ["resize", {"megapixels": megapixels}],
+        }
+        for i, image in enumerate(images):
+            args[f"images.image{i}"] = image
+        positive, negative, _ = self.add("ReferenceMultiLatent", 3, **args)
+        return ConditioningOutput(positive, negative)
+
     def reference_latent(self, conditioning: Output, latent: Output):
         return self.add("ReferenceLatent", 1, conditioning=conditioning, latent=latent)
 

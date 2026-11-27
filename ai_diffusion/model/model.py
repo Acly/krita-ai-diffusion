@@ -951,11 +951,11 @@ class DocumentModel(QObject, ObservableProperties):
                 control.append(ctrl.to_api())
 
         cond.edit_reference = self.is_editing
-        layers = extract_layers(cond)
+        layers = extract_layers(cond, arch=self.arch)
         add_refs(cond.control, layers)
 
         for region in cond.regions:
-            region_layers = extract_layers(cond, region)
+            region_layers = extract_layers(cond, region, self.arch)
             add_refs(region.control, region_layers)
             layers.update(region_layers)
 

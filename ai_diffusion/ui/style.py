@@ -938,7 +938,7 @@ class StylePresets(SettingsTab):
         elif arch.is_qwen_like:
             valid_archs = (Arch.auto, Arch.qwen, Arch.qwen_e, Arch.qwen_e_p, Arch.qwen_l)
         elif arch.is_flux2:
-            valid_archs = (Arch.auto, Arch.flux2_4b, Arch.flux2_9b)
+            valid_archs = (Arch.auto, Arch.flux2_4b, Arch.flux2_9b, Arch.flux3)
         else:
             valid_archs = (Arch.auto, arch)
         with SignalBlocker(self._arch_select):

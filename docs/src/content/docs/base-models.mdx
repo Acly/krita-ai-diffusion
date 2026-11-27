@@ -18,6 +18,7 @@ The plugin supports:
 * [Illustrious / NoobAI](#illustrious--noobai)
 * [Flux 1](#flux-1)
 * [Flux 2](#flux-2)
+* [Flux 3](#flux-3)
 * [Z-Image](#z-image)
 
 The following base models have limited support:
@@ -102,6 +103,36 @@ image continuity, eg. wrong anatomy or inconsistent objects.
 Flux 2 Klein also comes as a larger "9B" variant which requires more VRAM
 but produces higher quality results. It is supported by the plugin as well,
 but must be [downloaded manually](https://huggingface.co/black-forest-labs/FLUX.2-klein-9B).
+
+### Flux 3
+
+Flux 3 is the successor to Flux 2, released by Black Forest Labs as the open
+weights "Klein" variant (5.6B image transformer). Text-to-image and image
+editing are combined in one model: it accepts up to 10 reference images along
+with the prompt, and single-reference edits, multi-reference compositions and
+plain generation all use the same checkpoint. Control layers are converted to
+reference images and described in the prompt (`<ref_image_0>`, `<ref_image_1>`,
+  Editing regenerates the image from the references: describe the whole intended
+  result with the change folded in ("The cat is now black, sitting on
+  `<ref_image_1>`"); keep the change local with a selection (inpaint) or a lower
+  Strength. Krita layers can be passed as reference images with `<layer:name>`.
+...).
+
+Recommended sampling is euler with the simple scheduler: 16 steps at guidance
+strength 1 for the distilled checkpoint (the built-in style), and 50 steps at
+strength 4 for the "base" checkpoint - a copy of the style with those values
+suits fine-tuning and LoRA work. Shift is derived from the image resolution
+automatically.
+
+Flux 3 requires a full scene caption describing framing, subject, background and
+lighting - Black Forest Labs ships a prompt upsampler for this, which the plugin
+does not run. A short prompt typed as-is produces generic results, so write
+detailed prompts.
+
+Files must be [downloaded manually](https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy):
+a `flux3-image-klein*` checkpoint (bf16, int8-convrot or nvfp4), the
+`qwen3vl_4b` text encoder, and the Flux 2 VAE. There is no fp8 variant; the int8
+quantization runs on 8 GB GPUs, nvfp4 needs Blackwell.
 
 ### Z-Image
 
