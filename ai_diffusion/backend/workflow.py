@@ -210,10 +210,6 @@ def load_checkpoint_with_lora(
     if arch.supports_attention_guidance and checkpoint.self_attention_guidance:
         model = w.apply_self_attention_guidance(model)
 
-    if arch is Arch.moss:
-        # official recipe: skip layer 22 in the uncond pass; long text renders as garbage without it
-        model = w.skip_layer_guidance(model, single_layers="22")
-
     return model, Clip(clip, arch), vae
 
 

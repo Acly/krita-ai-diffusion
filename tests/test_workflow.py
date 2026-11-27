@@ -306,9 +306,7 @@ def test_moss_image_workflow():
     assert "CFGGuider" in loaders and "BasicGuider" not in loaders
     assert loaders["BasicScheduler"]["scheduler"] == "simple"
     assert loaders["KSamplerSelect"]["sampler_name"] == "er_sde"
-    slg = [n["inputs"] for n in w.root.values() if n["class_type"] == "SkipLayerGuidanceDiTSimple"]
-    assert len(slg) == 1
-    assert slg[0]["single_layers"] == "22" and slg[0]["double_layers"] == ""
+    assert not any(n["class_type"] == "SkipLayerGuidanceDiTSimple" for n in w.root.values())
 
 
 def _moss_models(with_edit_adapter=False):
@@ -355,7 +353,7 @@ def test_moss_image_edit_job():
         perf=PerformanceSettings(),
     )
     sampling = ensure(job.sampling)
-    assert sampling.sampler == "euler"
+    assert sampling.sampler == "er_sde"
     assert sampling.scheduler == "simple"
     assert sampling.total_steps == style.sampler_steps
     assert abs(sampling.cfg_scale - style.cfg_scale) < 1e-9
@@ -383,7 +381,7 @@ def test_moss_image_edit_workflow():
         cond,
         w.empty_latent_image(Extent(64, 64), Arch.moss),
         Arch.moss,
-        sampler="euler",
+        sampler="er_sde",
         scheduler="simple",
         steps=25,
         cfg=2.5,
@@ -397,12 +395,11 @@ def test_moss_image_edit_workflow():
     assert node_id("TextEncodeMOSSImageEdit")
     assert not any(n["class_type"].startswith("TextEncodeMOSSImageOstris") for n in nodes)
     assert not any(n["class_type"] == "MOSSImageOstrisEditModelPatch" for n in nodes)
-    # edit adapters are loaded model-only, before the mandatory layer skipping
+    # edit adapters are loaded model-only
     lora = w.root[node_id("LoraLoaderModelOnly")]
     assert lora["inputs"]["model"] == [node_id("UNETLoader"), 0]
     assert lora["inputs"]["lora_name"] == "moss_image_edit_lora_rank_64_bf16.safetensors"
-    slg = w.root[node_id("SkipLayerGuidanceDiTSimple")]
-    assert slg["inputs"]["model"] == [node_id("LoraLoaderModelOnly"), 0]
+    assert not any(n["class_type"] == "SkipLayerGuidanceDiTSimple" for n in nodes)
 
     tees = [n for n in nodes if n["class_type"] == "TextEncodeMOSSImageEdit"]
     assert len(tees) == 2  # positive and negative carry the same references
@@ -424,9 +421,7 @@ def test_moss_image_latent_edit_workflow():
 
     nodes = list(w.root.values())
     assert all(n["class_type"] != "TextEncodeMOSSImageEdit" for n in nodes)
-    slg = next(n for n in nodes if n["class_type"] == "SkipLayerGuidanceDiTSimple")
-    unet_id = next(k for k, n in w.root.items() if n["class_type"] == "UNETLoader")
-    assert slg["inputs"]["model"] == [unet_id, 0]
+    assert all(n["class_type"] != "SkipLayerGuidanceDiTSimple" for n in nodes)
 
 
 def test_moss_image_edit_prompts():
