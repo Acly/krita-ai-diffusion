@@ -279,8 +279,6 @@ def _flux3_models() -> ClientModels:
 
 
 def test_flux3_klein_workflow():
-    import math
-
     w = ComfyWorkflow()
     model, clip, vae = workflow.load_checkpoint_with_lora(
         w, CheckpointInput("F3K", Arch.flux3, rescale_cfg=0), _flux3_models()
@@ -307,10 +305,8 @@ def test_flux3_klein_workflow():
     assert loaders["UNETLoader"]["unet_name"] == "flux3_image_klein_sd_int8_convrot.safetensors"
     assert loaders["CLIPLoader"]["type"] == "flux3"
     assert loaders["VAELoader"]["vae_name"] == "flux2-vae.safetensors"
-    # official recipe: constant shift ln(16), independent of output resolution
-    shift = math.log(16.0)
-    assert loaders["ModelSamplingFlux"]["max_shift"] == shift
-    assert loaders["ModelSamplingFlux"]["base_shift"] == shift
+    # like the templates: rely on the shift from the model config
+    assert "ModelSamplingFlux" not in loaders
     assert loaders["KSamplerSelect"]["sampler_name"] == "euler"
     assert loaders["BasicScheduler"]["scheduler"] == "simple"
     assert "FluxGuidance" not in loaders
