@@ -165,6 +165,8 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
                 clip = w.load_clip(te["qwen_3vl_4b"], type="krea2")
             case Arch.qwen2:
                 clip = w.load_clip(te["qwen_3vl_8b"], type="qwen_image")
+            case Arch.boogu:
+                clip = w.load_clip(te["qwen_3vl_8b"], type="boogu")
             case _:
                 raise RuntimeError(f"No text encoder for model architecture {arch.name}")
 
@@ -185,6 +187,11 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
 
     if arch is Arch.sd3:
         model = w.model_sampling_sd3(model)
+
+    if arch is Arch.boogu and "turbo" not in model_info.filename.lower():
+        # non-distilled Boogu checkpoints need the AuraFlow timestep shift,
+        # matching the official edit template; turbo models are sampled unshifted
+        model = w.model_sampling_aura_flow(model)
 
     if checkpoint.v_prediction_zsnr:
         model = w.model_sampling_discrete(model, "v_prediction", zsnr=True)
@@ -542,6 +549,14 @@ def encode_prompt(
             negative = cond.negative.prepare(w) if cond.negative else ""
             prompt = w.text_encode_qwen2(clip.model, vae, ref_images, positive, negative)
             return prompt, None  # note: latent returned by this node is always noise/empty
+        elif arch is Arch.boogu and ref_images:
+            # Boogu edit: references enter the text encoder as VL images and as reference
+            # latents of both branches; plain text encoding (as in the t2i template) is
+            # used when there are no references
+            positive = cond.positive.prepare(w, cond.style_prompt)
+            negative = cond.negative.prepare(w) if cond.negative else ""
+            prompt = w.text_encode_boogu(clip.model, vae, ref_images, positive, negative)
+            return prompt, None
         else:
             positive = cond.positive.encode(w, clip, cond.style_prompt, ref_images)
             negative = cond.negative.encode(w, clip) if cond.negative else positive

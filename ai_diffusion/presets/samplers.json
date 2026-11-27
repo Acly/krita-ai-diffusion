@@ -109,5 +109,19 @@
         "steps": 20,
         "minimum_steps": 3,
         "cfg": 5.0
+    },
+    "Boogu Turbo - LCM": {
+        "sampler": "lcm",
+        "scheduler": "sgm_uniform",
+        "steps": 4,
+        "minimum_steps": 2,
+        "cfg": 1.0
+    },
+    "Boogu - DPM++ 2M": {
+        "sampler": "dpmpp_2m",
+        "scheduler": "simple",
+        "steps": 25,
+        "minimum_steps": 4,
+        "cfg": 3.5
     }
 }

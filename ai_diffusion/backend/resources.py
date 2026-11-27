@@ -93,6 +93,7 @@ class Arch(Enum):
     zimage = "Z-Image"
     ernie = "ERNIE Image"
     krea2 = "Krea 2"
+    boogu = "Boogu Image"
 
     auto = "Automatic"
     all = "All"
@@ -141,6 +142,8 @@ class Arch(Enum):
             return Arch.ernie
         if string == "krea2":
             return Arch.krea2
+        if string in {"boogu", "boogu-image"} or (string == "unknown" and "boogu" in filename):
+            return Arch.boogu
         return None
 
     @staticmethod
@@ -208,7 +211,7 @@ class Arch(Enum):
 
     @property
     def supports_edit(self):  # includes text-to-image models that can also edit
-        return self.is_edit or self.is_flux2 or self is Arch.qwen2
+        return self.is_edit or self.is_flux2 or self is Arch.qwen2 or self is Arch.boogu
 
     @property
     def is_sdxl_like(self):
@@ -256,6 +259,8 @@ class Arch(Enum):
                 return ["ministral"]
             case Arch.krea2:
                 return ["qwen_3vl_4b"]
+            case Arch.boogu:
+                return ["qwen_3vl_8b"]
             case _:
                 raise ValueError(f"Unsupported architecture: {self}")
 
@@ -281,6 +286,7 @@ class Arch(Enum):
             Arch.zimage,
             Arch.ernie,
             Arch.krea2,
+            Arch.boogu,
         ]
 
 
@@ -424,7 +430,7 @@ class ControlMode(Enum):
 
     def can_substitute_instruction(self, arch: Arch):
         """True if this control mode is covered by instruction-following edit models."""
-        if arch.is_flux2 or arch is Arch.qwen2:
+        if arch.is_flux2 or arch is Arch.qwen2 or arch is Arch.boogu:
             return self in [
                 ControlMode.style,
                 ControlMode.composition,
@@ -844,6 +850,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.vae, Arch.qwen_e_p, "default"): ["qwen"],
     resource_id(ResourceKind.vae, Arch.qwen_l, "default"): ["qwen_image_layered_vae"],
     resource_id(ResourceKind.vae, Arch.qwen2, "default"): ["qwen_image_2.1_vae"],
+    resource_id(ResourceKind.vae, Arch.boogu, "default"): ["ae.s", "flux-", "flux_", "flux/", "flux1"],
     resource_id(ResourceKind.vae, Arch.anima, "default"): ["qwen_image"],
     resource_id(ResourceKind.vae, Arch.zimage, "default"): ["z-image", "flux-", "flux_", "flux/", "flux1", "ae.s"],
     resource_id(ResourceKind.vae, Arch.ernie, "default"): ["flux2"],
@@ -858,6 +865,7 @@ required_resource_ids = {
     ResourceId(ResourceKind.text_encoder, Arch.qwen_e, "qwen"),
     ResourceId(ResourceKind.text_encoder, Arch.qwen_e_p, "qwen"),
     ResourceId(ResourceKind.text_encoder, Arch.qwen2, "qwen_3vl_8b"),
+    ResourceId(ResourceKind.text_encoder, Arch.boogu, "qwen_3vl_8b"),
     ResourceId(ResourceKind.text_encoder, Arch.anima, "qwen_3_06b"),
     ResourceId(ResourceKind.text_encoder, Arch.zimage, "qwen_3_4b"),
     ResourceId(ResourceKind.text_encoder, Arch.flux2_4b, "qwen_3_4b"),
@@ -879,6 +887,7 @@ required_resource_ids = {
     ResourceId(ResourceKind.vae, Arch.qwen_e, "default"),
     ResourceId(ResourceKind.vae, Arch.qwen_e_p, "default"),
     ResourceId(ResourceKind.vae, Arch.qwen2, "default"),
+    ResourceId(ResourceKind.vae, Arch.boogu, "default"),
     ResourceId(ResourceKind.vae, Arch.anima, "default"),
     ResourceId(ResourceKind.vae, Arch.zimage, "default"),
     ResourceId(ResourceKind.vae, Arch.flux2_4b, "default"),
